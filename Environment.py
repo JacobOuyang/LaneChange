@@ -1,16 +1,17 @@
 import Cars
-
+import numpy as np
+import math
 class GameV1:
-    def __init__(self, lanes):
+    def __init__(self):
         #eachunit is 5.2 feet
         #car will be 3 units long
         #
-        self.lanes = lanes
+        self.lanes = 5
         self.Game = []
         self.maxUnits = 1000;
         self.playercarposition = 0;
-        self.playerlanes =lanes-1
-
+        self.playerlanes = self.lanes-1
+        self.imagearray = np.zeros(shape=(200,200))
 
         for i in range(self.lanes):
             self.Game.append([])
@@ -31,17 +32,27 @@ class GameV1:
                 updatingcar = self.Game[i][j]
                 if (isinstance(updatingcar, Cars.PlayerCar) == False):
                     updatingcar.updatePos()
-                    if (updatingcar.position > 1000):
+                    if updatingcar.GetPos() >= 1000:
                         self.Game[i].pop(j)
                         self.Game[i].insert(0, updatingcar)
                         updatingcar.position = 0;
+        self.searchforPlayerCar()
         updatingcar = self.Game[self.playerlanes][self.playercarposition]
         updatingcar.updatePos()
         print(updatingcar.GetPos())
-        if self.CheckColission(self.playerlanes, self.playercarposition):
+        self.createImage(self.createImageList())
+        if self.checkColission():
             return "Collision"
-        if updatingcar.GetPos() >=1000:
+        elif updatingcar.GetPos() >=1000:
             return "Game Won"
+
+
+    def searchforPlayerCar(self):
+        for i in range(len(self.Game)):
+            for j in range(len(self.Game[i])):
+                if isinstance(self.Game[i][j], Cars.PlayerCar):
+                    self.playerlanes = i
+                    self.playercarposition =j
 
 
     def updatePlayerCar(self, action):
@@ -50,48 +61,106 @@ class GameV1:
         #action 2 = left lane change
         #action 3 = right lane change
         playercar = self.Game[self.playerlanes][self.playercarposition]
-        if action ==0:
+        if action == 0:
             if self.playercarposition != len(self.Game[self.playerlanes]) -1:
                 playercar.updateVeloc(self.Game[self.playerlanes][self.playercarposition+1].GetVel())
 
-        elif action ==1:
+        elif action == 1:
             playercar.updateVeloc(playercar.GetVel() + 2)
 
-        elif action ==2:
+        elif action == 2:
 
             if self.playerlanes != 0:
-                for i in range(len(self.Game[lane-1])):
+                for i in range(len(self.Game[self.playerlanes -1])):
                     if self.Game[self.playerlanes-1][i].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes-1].insert(i, playercar)
-
-
-        elif action ==3:
+        elif action == 3:
             if self.playerlanes != self.lanes-1:
                 for i in range(len(self.Game[self.playerlanes+1])):
                     if self.Game[self.playerlanes+1][i].GetPos >= playercar.GetPos():
                         self.Game.pop([self.playerlanes][self.playercarposition])
                         self.Game[self.playerlanes+1].insert(i, playercar)
 
-    def CheckColission(self, lane, carnumber):
-        if carnumber != (len(self.Game[lane]) -1):
-            if not set(self.Game[lane][carnumber].CollisionBox()).isdisjoint(self.Game[lane][carnumber+1].CollisionBox()):
-                return True
-        if carnumber != 0:
-            if not set(self.Game[lane][carnumber].CollisionBox()).isdisjoint(self.Game[lane][carnumber-1].CollisionBox()):
-                return True
+    def checkColission(self):
+        playercar = self.Game[self.playerlanes][self.playercarposition]
+        if self.checkBack(playercar):
+            print("1")
+            return True
+        elif self.checkFront(playercar):
+            print("2")
+            return True
+        elif self.checkFast(playercar):
+            print("3")
+            return True
         else:
             return False
+    def checkBack(self, playercar):
+        if self.playercarposition !=0:
+            if playercar.CollisionBox()[1][0] <= self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[1][1]:
+                print(playercar.CollisionBox()[1][0])
+                print("playercar")
+                print(self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[1][1])
+                print("car behind")
+                return True
+        return False
 
+    def checkFront(self, playercar):
+        if self.playercarposition < (len(self.Game[self.playerlanes])-1):
 
+            if playercar.CollisionBox()[1][1] >= self.Game[self.playerlanes][self.playercarposition+1].CollisionBox()[1][0]:
+                print(playercar.CollisionBox()[1][1])
+                print(self.Game[self.playerlanes][self.playercarposition+1].CollisionBox()[1][0])
+                return True
 
+        return False
+    def checkFast(self,playercar):
+        if (self.playercarposition!=0):
 
+            if playercar.CollisionBox()[0][1] <= self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[0][0]:
 
+                if playercar.CollisionBox()[1][0] >= self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[1][1]:
+                    print("2 fast")
+                    return True
+
+        return False
+
+    def createImageList(self):
+        playercar = self.Game[self.playerlanes][self.playercarposition]
+        subGamearray = []
+        for i in range(len(self.Game) - 1):
+            subGamearray.append([])
+        for i in range(len(self.Game) - 1):
+            for j in range(len(self.Game[i])):
+                if self.Game[i][j].GetPos() >= playercar.GetPos() - 10:
+                    if self.Game[i][j].GetPos() <= playercar.GetPos():
+                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10)
+                if self.Game[i][j].GetPos() <= playercar.GetPos() + 10:
+                    if self.Game[i][j].GetPos() > playercar.GetPos():
+                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10)
+        return subGamearray
+
+    def createImage(self, subGamearray):
+        self.imagearray = np.zeros(shape=(200,200))
+        for i in range(len(subGamearray)):
+            for j in range(len(subGamearray[i])):
+                self.shadewhere(subGamearray[i][j], i)
+    def shadewhere(self, position, lanenumber):
+        leftmax = int(math.floor(position - 10))
+        rightmax = int(math.floor(position + 10))
+        if leftmax < 0:
+            leftmax = 0
+        if rightmax >200:
+            rightmax =200
+
+        for i in range(20):
+            for j in range(rightmax-leftmax):
+                self.imagearray[i+10 + lanenumber*40][j] = 1
 
 
 
 def main():
-    game = GameV1(5)
+    game = GameV1()
     game.populateGameArray()
     gameover = False
     while gameover == False:
