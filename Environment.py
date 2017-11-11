@@ -1,6 +1,8 @@
 import Cars
 import numpy as np
 import math
+import cv2
+
 class GameV1:
     def __init__(self):
         #eachunit is 5.2 feet
@@ -12,6 +14,8 @@ class GameV1:
         self.playercarposition = 0;
         self.playerlanes = self.lanes-1
         self.imagearray = np.zeros(shape=(200,200))
+        self.gameplayerindexvert =0
+        self.gameplayerindexhorz =0
 
         for i in range(self.lanes):
             self.Game.append([])
@@ -40,7 +44,11 @@ class GameV1:
         updatingcar = self.Game[self.playerlanes][self.playercarposition]
         updatingcar.updatePos()
         print(updatingcar.GetPos())
-        self.createImage(self.createImageList())
+        self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
+        cv2.imshow('game image', self.imagearray)
+        cv2.waitKey(1)
+
+
         if self.checkColission():
             return "Collision"
         elif updatingcar.GetPos() >=1000:
@@ -128,24 +136,28 @@ class GameV1:
     def createImageList(self):
         playercar = self.Game[self.playerlanes][self.playercarposition]
         subGamearray = []
-        for i in range(len(self.Game) - 1):
+        for i in range(len(self.Game) ):
             subGamearray.append([])
-        for i in range(len(self.Game) - 1):
+        for i in range(len(self.Game) ):
             for j in range(len(self.Game[i])):
                 if self.Game[i][j].GetPos() >= playercar.GetPos() - 10:
                     if self.Game[i][j].GetPos() <= playercar.GetPos():
-                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10)
+                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10 +10)
+                    if self.Game[i][j].GetPos() == playercar.GetPos():
+                        self.gameplayerindexvert, self.gameplayerindexhorz = i, j
                 if self.Game[i][j].GetPos() <= playercar.GetPos() + 10:
                     if self.Game[i][j].GetPos() > playercar.GetPos():
-                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10)
+                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10 +10)
         return subGamearray
 
-    def createImage(self, subGamearray):
+    def createImage(self, subGamearray, playervert, playerhorz):
         self.imagearray = np.zeros(shape=(200,200))
         for i in range(len(subGamearray)):
             for j in range(len(subGamearray[i])):
-                self.shadewhere(subGamearray[i][j], i)
-    def shadewhere(self, position, lanenumber):
+                if i == playervert & j == playerhorz:
+                    self.shadewhere(subGamearray[i][j], i, 0.5)
+                self.shadewhere(subGamearray[i][j], i, 1)
+    def shadewhere(self, position, lanenumber, value):
         leftmax = int(math.floor(position - 10))
         rightmax = int(math.floor(position + 10))
         if leftmax < 0:
@@ -155,7 +167,7 @@ class GameV1:
 
         for i in range(20):
             for j in range(rightmax-leftmax):
-                self.imagearray[i+10 + lanenumber*40][j] = 1
+                self.imagearray[i+10 + lanenumber*40][j+leftmax] = value
 
 
 
@@ -163,12 +175,13 @@ def main():
     game = GameV1()
     game.populateGameArray()
     gameover = False
+    cv2.namedWindow("game images")
     while gameover == False:
         temp = game.updateGameArray(0)
         if temp != None:
             gameover = True
             print(temp)
-
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
