@@ -46,7 +46,7 @@ class GameV1:
         print(updatingcar.GetPos())
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
         cv2.imshow('game image', self.imagearray)
-        cv2.waitKey(1)
+        cv2.waitKey(100)
 
 
         if self.checkColission():
@@ -142,21 +142,26 @@ class GameV1:
             for j in range(len(self.Game[i])):
                 if self.Game[i][j].GetPos() >= playercar.GetPos() - 10:
                     if self.Game[i][j].GetPos() <= playercar.GetPos():
-                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10 +10)
+                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10 +100)
                     if self.Game[i][j].GetPos() == playercar.GetPos():
-                        self.gameplayerindexvert, self.gameplayerindexhorz = i, j
+                        self.gameplayerindexvert = i
+                        self.gameplayerindexhorz = len(subGamearray[i])-1
                 if self.Game[i][j].GetPos() <= playercar.GetPos() + 10:
                     if self.Game[i][j].GetPos() > playercar.GetPos():
-                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10 +10)
+                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10 +100)
         return subGamearray
 
     def createImage(self, subGamearray, playervert, playerhorz):
         self.imagearray = np.zeros(shape=(200,200))
         for i in range(len(subGamearray)):
             for j in range(len(subGamearray[i])):
-                if i == playervert & j == playerhorz:
-                    self.shadewhere(subGamearray[i][j], i, 0.5)
-                self.shadewhere(subGamearray[i][j], i, 1)
+                if i == playervert:
+                    if j == playerhorz:
+                        self.shadewhere(subGamearray[i][j], i, 0.5)
+                    else:
+                        self.shadewhere(subGamearray[i][j], i, 1)
+                else:
+                    self.shadewhere(subGamearray[i][j], i, 1)
     def shadewhere(self, position, lanenumber, value):
         leftmax = int(math.floor(position - 10))
         rightmax = int(math.floor(position + 10))
