@@ -4,7 +4,7 @@ import math
 import cv2
 
 class GameV1:
-    def __init__(self):
+    def __init__(self, render):
         #eachunit is 5.2 feet
         #car will be 3 units long
         #
@@ -16,11 +16,13 @@ class GameV1:
         self.imagearray = np.zeros(shape=(200,200))
         self.gameplayerindexvert =0
         self.gameplayerindexhorz =0
+        self.render = render
 
-        for i in range(self.lanes):
-            self.Game.append([])
 
     def populateGameArray(self):
+        self.Game=[]
+        for i in range(self.lanes):
+            self.Game.append([])
         for i in range(self.lanes):
             currentposition = 0;
             while(currentposition<1000):
@@ -29,6 +31,7 @@ class GameV1:
         self.Game[self.lanes-1][0] = Cars.PlayerCar(0, self.Game[self.lanes-1][1].velocity)
 
     def updateGameArray(self, action):
+        self.searchforPlayerCar()
         self.updatePlayerCar(action)
 
         for i in range(len(self.Game)):
@@ -43,16 +46,15 @@ class GameV1:
         self.searchforPlayerCar()
         updatingcar = self.Game[self.playerlanes][self.playercarposition]
         updatingcar.updatePos()
-        print(updatingcar.GetPos())
+        #print(updatingcar.GetPos())
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
         cv2.imshow('game image', self.imagearray)
         cv2.waitKey(100)
 
-
         if self.checkColission():
-            return "Collision"
+            return -1
         elif updatingcar.GetPos() >=1000:
-            return "Game Won"
+            return +1
 
 
     def searchforPlayerCar(self):
@@ -93,23 +95,23 @@ class GameV1:
     def checkColission(self):
         playercar = self.Game[self.playerlanes][self.playercarposition]
         if self.checkBack(playercar):
-            print("1")
+            #print("1")
             return True
         elif self.checkFront(playercar):
-            print("2")
+            #print("2")
             return True
         elif self.checkFast(playercar):
-            print("3")
+            #print("3")
             return True
         else:
             return False
     def checkBack(self, playercar):
         if self.playercarposition !=0:
             if playercar.CollisionBox()[1][0] <= self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[1][1]:
-                print(playercar.CollisionBox()[1][0])
-                print("playercar")
-                print(self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[1][1])
-                print("car behind")
+                #print(playercar.CollisionBox()[1][0])
+                #print("playercar")
+                #print(self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[1][1])
+                #print("car behind")
                 return True
         return False
 
@@ -117,8 +119,8 @@ class GameV1:
         if self.playercarposition < (len(self.Game[self.playerlanes])-1):
 
             if playercar.CollisionBox()[1][1] >= self.Game[self.playerlanes][self.playercarposition+1].CollisionBox()[1][0]:
-                print(playercar.CollisionBox()[1][1])
-                print(self.Game[self.playerlanes][self.playercarposition+1].CollisionBox()[1][0])
+                #print(playercar.CollisionBox()[1][1])
+                #print(self.Game[self.playerlanes][self.playercarposition+1].CollisionBox()[1][0])
                 return True
 
         return False
@@ -128,7 +130,7 @@ class GameV1:
             if playercar.CollisionBox()[0][1] <= self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[0][0]:
 
                 if playercar.CollisionBox()[1][0] >= self.Game[self.playerlanes][self.playercarposition-1].CollisionBox()[1][1]:
-                    print("2 fast")
+                    #print("2 fast")
                     return True
 
         return False
@@ -136,19 +138,19 @@ class GameV1:
     def createImageList(self):
         playercar = self.Game[self.playerlanes][self.playercarposition]
         subGamearray = []
-        for i in range(len(self.Game) ):
+        for i in range(len(self.Game)):
             subGamearray.append([])
-        for i in range(len(self.Game) ):
+        for i in range(len(self.Game)):
             for j in range(len(self.Game[i])):
                 if self.Game[i][j].GetPos() >= playercar.GetPos() - 10:
                     if self.Game[i][j].GetPos() <= playercar.GetPos():
-                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10 +100)
+                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos()) * 10 + 100)
                     if self.Game[i][j].GetPos() == playercar.GetPos():
                         self.gameplayerindexvert = i
-                        self.gameplayerindexhorz = len(subGamearray[i])-1
+                        self.gameplayerindexhorz = len(subGamearray[i]) - 1
                 if self.Game[i][j].GetPos() <= playercar.GetPos() + 10:
                     if self.Game[i][j].GetPos() > playercar.GetPos():
-                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos())*10 +100)
+                        subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos()) * 10 + 100)
         return subGamearray
 
     def createImage(self, subGamearray, playervert, playerhorz):
@@ -173,19 +175,32 @@ class GameV1:
         for i in range(20):
             for j in range(rightmax-leftmax):
                 self.imagearray[i+10 + lanenumber*40][j+leftmax] = value
+    def runGame(self, action):
+
+
+        temp = self.updateGameArray(action)
+
+        if temp is None:
+            return self.imagearray, 0, False
+        else:
+            self.populateGameArray()
+
+            return self.imagearray, temp, True
 
 
 
 def main():
-    game = GameV1()
+    game = GameV1(True)
     game.populateGameArray()
     gameover = False
     cv2.namedWindow("game images")
-    while gameover == False:
-        temp = game.updateGameArray(0)
-        if temp != None:
-            gameover = True
-            print(temp)
+    while True:
+        game.runGame(0)
+   # while gameover == False:
+    #    temp = game.updateGameArray(0)
+     #   if temp != None:
+      #      gameover = True
+       #     print(temp)
     cv2.destroyAllWindows()
 
 
