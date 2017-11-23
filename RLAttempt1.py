@@ -14,7 +14,8 @@ decay = 0.99  # decay rate for RMSProp gradients
 save_path = 'models/Attempt1'
 
 # gamespace
-game=Environment.GameV1(True)
+display = False
+game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
 xs, rs, ys = [], [], []
@@ -142,6 +143,7 @@ while True:
       #  ys.pop(0)
        # rs.pop(0)
     if np.shape(x) == (200,200):
+        x= np.reshape(x, [-1])
         xs.append(x)
         ys.append(label)
         rs.append(reward)
@@ -150,8 +152,9 @@ while True:
         # update running reward
 
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-
+        running = len(rs)
         if episode_number % 2:
+        #if True:
             rs = discount_rewards(rs)
 
             excess = len(rs) - MAX_MEMORY_SIZE
@@ -171,7 +174,7 @@ while True:
             y_t = np.vstack(ys)
 
             # parameter update
-            feed = {tf_x: np.vstack(xs), tf_epr: np.vstack(rs), tf_y: np.vstack(ys)}
+            feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
             _ = sess.run(train_op, feed)
             # bookkeeping
             xs, rs, ys = [], [], []  # reset game history
@@ -179,7 +182,7 @@ while True:
         # print progress console
         if episode_number % 5 == 0:
             print(
-            'ep {}: reward: {}, mean reward: {:3f}'.format(episode_number, reward_sum, running_reward))
+            'ep {}: reward: {}, mean reward: {:3f}, running: {}'.format(episode_number, reward_sum, running_reward, running))
         else:
             print(
             '\tep {}: reward: {}'.format(episode_number, reward_sum))
@@ -188,7 +191,7 @@ while True:
         episode_number += 1  # the Next Episode
 
         reward_sum = 0
-        if episode_number % 100 == 0:
+        if episode_number % 1000 == 0:
             saver.save(sess, save_path, global_step=episode_number)
             print(
             "SAVED MODEL #{}".format(episode_number))
