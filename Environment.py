@@ -46,10 +46,12 @@ class GameV1:
         self.searchforPlayerCar()
         updatingcar = self.Game[self.playerlanes][self.playercarposition]
         updatingcar.updatePos()
-        #print(updatingcar.GetPos())
+        print(updatingcar.GetPos())
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
-        cv2.imshow('game image', self.imagearray)
-        cv2.waitKey(100)
+        if self.render:
+
+            cv2.imshow('game image', self.imagearray)
+            cv2.waitKey(100)
 
         if self.checkColission():
             return -1
@@ -190,7 +192,8 @@ class GameV1:
 
 
 def main():
-    game = GameV1(True)
+    display = True
+    game = GameV1(display)
     game.populateGameArray()
     gameover = False
     cv2.namedWindow("game images")
