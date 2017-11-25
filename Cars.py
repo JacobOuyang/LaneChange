@@ -23,14 +23,18 @@ class Car:
 
 
 class PlayerCar(Car):
-    #def __init__(self, position, velocity):
-     #   super.__init__(position, velocity)
+    def __init__(self, position, velocity):
+        super().__init__(position, velocity)
+        self.velchange = 0
     def updatePos(self):
         self.collisionbox[0] = [self.position - 1, self.position + 1]
         self.position += self.velocity
         self.collisionbox[1] = [self.position - 1, self.position + 1]
 
     def updateVeloc(self, inputvel):
+        temp = self.velocity
         if (inputvel != 0):
             self.velocity = inputvel
+            self.velchange = self.velocity - temp
+
 

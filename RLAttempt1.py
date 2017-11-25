@@ -5,7 +5,7 @@ import tensorflow as tf
 
 MAX_MEMORY_SIZE = 2000
 # hyperparameters
-n_obs = 200 * 200 # dimensionality of observations
+n_obs = 200 * 300 # dimensionality of observations
 h = 200  # number of hidden layer neurons
 n_actions = 4  # number of available actions
 learning_rate = 1e-3
@@ -18,10 +18,10 @@ display = False
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
-xs, rs, ys = [], [], []
+xs, rs, rs2, ys = [], [], [], []
 running_reward = None
 reward_sum = 0
-observation = np.zeros(shape=(200,200))
+observation = np.zeros(shape=(200,300))
 episode_number = 0
 
 # initialize model
@@ -34,8 +34,17 @@ with tf.variable_scope('layer_two', reuse=False):
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
 def discount_rewards(rewardarray):
     rewardarray.reverse()
+
     for i in range(len(rewardarray) -1):
         if (rewardarray[i]!= 0 and rewardarray[i+1] ==0):
+            rewardarray[i+1] = rewardarray[i] * gamma
+    rewardarray.reverse()
+    return rewardarray
+def discount_smallrewards(rewardarray):
+    rewardarray.reverse()
+    rewardarray *=5
+    for i in range(len(rewardarray) -1):
+        if (rewardarray[i] != 0 and rewardarray[i+1] ==0):
             rewardarray[i+1] = rewardarray[i] * gamma
     rewardarray.reverse()
     return rewardarray
@@ -130,7 +139,7 @@ while True:
     label[action] = 1
 
     # step the environment and get new measurements
-    observation, reward, done = game.runGame(action)
+    observation, reward, smallreward, done = game.runGame(action)
     reward_sum += reward
 
     # record game history
@@ -142,11 +151,12 @@ while True:
      #   xs.pop(0)
       #  ys.pop(0)
        # rs.pop(0)
-    if np.shape(x) == (200,200):
+    if np.shape(x) == (200,300):
         x= np.reshape(x, [-1])
         xs.append(x)
         ys.append(label)
         rs.append(reward)
+        rs2.append(smallreward)
 
     if done:
         # update running reward
@@ -156,6 +166,9 @@ while True:
         if episode_number % 2:
         #if True:
             rs = discount_rewards(rs)
+            rs2 = discount_smallrewards(rs2)
+            for i in range(len(rs)):
+                rs[i] += rs2[i]
 
             excess = len(rs) - MAX_MEMORY_SIZE
             if excess < 0:

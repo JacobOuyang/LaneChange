@@ -13,7 +13,7 @@ class GameV1:
         self.maxUnits = 1000;
         self.playercarposition = 0;
         self.playerlanes = self.lanes-1
-        self.imagearray = np.zeros(shape=(200,200))
+        self.imagearray = np.zeros(shape=(200,300))
         self.gameplayerindexvert =0
         self.gameplayerindexhorz =0
         self.render = render
@@ -32,7 +32,7 @@ class GameV1:
 
     def updateGameArray(self, action):
         self.searchforPlayerCar()
-        self.updatePlayerCar(action)
+        reward= self.updatePlayerCar(action)
 
         for i in range(len(self.Game)):
             for j in range(len(self.Game[i])):
@@ -54,9 +54,12 @@ class GameV1:
             cv2.waitKey(100)
 
         if self.checkColission():
-            return -1
+            return -1, reward
         elif updatingcar.GetPos() >=1000:
-            return +1
+            return +1, reward
+        else:
+            return 0, reward
+
 
 
     def searchforPlayerCar(self):
@@ -77,6 +80,7 @@ class GameV1:
             if self.playercarposition != len(self.Game[self.playerlanes]) -1:
                 playercar.updateVeloc(self.Game[self.playerlanes][self.playercarposition+1].GetVel())
 
+
         elif action == 1:
             playercar.updateVeloc(playercar.GetVel() + 2)
 
@@ -93,7 +97,12 @@ class GameV1:
                     if self.Game[self.playerlanes+1][i].GetPos >= playercar.GetPos():
                         self.Game.pop([self.playerlanes][self.playercarposition])
                         self.Game[self.playerlanes+1].insert(i, playercar)
-
+        if playercar.velchange > 0:
+            return 1
+        if playercar.velchange <0:
+            return -1
+        if playercar.velchange ==0:
+            return 0
     def checkColission(self):
         playercar = self.Game[self.playerlanes][self.playercarposition]
         if self.checkBack(playercar):
@@ -150,13 +159,13 @@ class GameV1:
                     if self.Game[i][j].GetPos() == playercar.GetPos():
                         self.gameplayerindexvert = i
                         self.gameplayerindexhorz = len(subGamearray[i]) - 1
-                if self.Game[i][j].GetPos() <= playercar.GetPos() + 10:
+                if self.Game[i][j].GetPos() <= playercar.GetPos() + 20:
                     if self.Game[i][j].GetPos() > playercar.GetPos():
                         subGamearray[i].append((self.Game[i][j].GetPos() - playercar.GetPos()) * 10 + 100)
         return subGamearray
 
     def createImage(self, subGamearray, playervert, playerhorz):
-        self.imagearray = np.zeros(shape=(200,200))
+        self.imagearray = np.zeros(shape=(200,300))
         for i in range(len(subGamearray)):
             for j in range(len(subGamearray[i])):
                 if i == playervert:
@@ -171,8 +180,8 @@ class GameV1:
         rightmax = int(math.floor(position + 10))
         if leftmax < 0:
             leftmax = 0
-        if rightmax >200:
-            rightmax =200
+        if rightmax >300:
+            rightmax =300
 
         for i in range(20):
             for j in range(rightmax-leftmax):
@@ -182,12 +191,12 @@ class GameV1:
 
         temp = self.updateGameArray(action)
 
-        if temp is None:
-            return self.imagearray, 0, False
+        if temp[0] == 0:
+            return self.imagearray, temp[0], temp[1], False
         else:
             self.populateGameArray()
 
-            return self.imagearray, temp, True
+            return self.imagearray, temp[0], temp[1], True
 
 
 
