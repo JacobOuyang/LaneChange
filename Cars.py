@@ -15,7 +15,7 @@ class Car:
         self.position += self.velocity
         if self.position >=1000:
             self.collisionbox[0] = [0,0]
-            self.collisionbox[1] = [self.position-1001, self.position-999]
+            self.collisionbox[1] = [0, 0]
         else:
             self.collisionbox[1] = [self.position-1, self.position+1]
     def CollisionBox(self):

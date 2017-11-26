@@ -5,11 +5,12 @@ import tensorflow as tf
 
 MAX_MEMORY_SIZE = 2000
 # hyperparameters
-n_obs = 200 * 300 # dimensionality of observations
+n_obs = 200 * 300 *2 # dimensionality of observations
 h = 200  # number of hidden layer neurons
 n_actions = 4  # number of available actions
 learning_rate = 1e-3
-gamma = .99  # discount factor for reward
+gamma = .6  # discount factor for reward
+gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
 save_path = 'models/Attempt1'
 
@@ -37,7 +38,7 @@ def discount_rewards(rewardarray):
 
     for i in range(len(rewardarray) -1):
         if (rewardarray[i]!= 0 and rewardarray[i+1] ==0):
-            rewardarray[i+1] = rewardarray[i] * gamma
+            rewardarray[i+1] = rewardarray[i] * gamma * 10
     rewardarray.reverse()
     return rewardarray
 def discount_smallrewards(rewardarray):
@@ -45,7 +46,7 @@ def discount_smallrewards(rewardarray):
     rewardarray *=5
     for i in range(len(rewardarray) -1):
         if (rewardarray[i] != 0 and rewardarray[i+1] ==0):
-            rewardarray[i+1] = rewardarray[i] * gamma
+            rewardarray[i+1] = rewardarray[i] * gamma2 +1
     rewardarray.reverse()
     return rewardarray
 
@@ -127,7 +128,7 @@ while True:
 
     # preprocess the observation, set input to network to be difference image
     cur_x = observation
-    x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
+    x = np.array([cur_x,prev_x]) if prev_x is not None else np.zeros(n_obs)
     prev_x = cur_x
 
     # stochastically sample a policy from the network
@@ -151,12 +152,12 @@ while True:
      #   xs.pop(0)
       #  ys.pop(0)
        # rs.pop(0)
-    if np.shape(x) == (200,300):
-        x= np.reshape(x, [-1])
-        xs.append(x)
-        ys.append(label)
-        rs.append(reward)
-        rs2.append(smallreward)
+    #if np.shape(x) == (2):
+    x= np.reshape(x, (200*300*2))
+    xs.append(x)
+    ys.append(label)
+    rs.append(reward)
+    rs2.append(smallreward)
 
     if done:
         # update running reward
@@ -190,7 +191,7 @@ while True:
             feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
             _ = sess.run(train_op, feed)
             # bookkeeping
-            xs, rs, ys = [], [], []  # reset game history
+            xs, rs, rs2, ys = [], [], [], []  # reset game history
 
         # print progress console
         if episode_number % 5 == 0:
