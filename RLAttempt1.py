@@ -35,19 +35,22 @@ with tf.variable_scope('layer_two', reuse=False):
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
 def discount_rewards(rewardarray):
     rewardarray.reverse()
+    if rewardarray[0] > 0:
+        rewardarray[0] = len(rewardarray)/330 * rewardarray[0] *2
+    else:
+        rewardarray[0] = rewardarray[0]
 
     for i in range(len(rewardarray) -1):
-        if (rewardarray[i]!= 0 and rewardarray[i+1] ==0):
-            rewardarray[i+1] = rewardarray[i] * gamma
+
+        rewardarray[i+1] = rewardarray[i] * gamma
     rewardarray.reverse()
     return rewardarray
 def discount_smallrewards(rewardarray):
     rewardarray.reverse()
 
     for i in range(len(rewardarray) -1):
-        rewardarray[i] *=0.5
-        if (rewardarray[i] != 0 and rewardarray[i+1] ==0):
-            rewardarray[i+1] = rewardarray[i] * gamma2 +1
+        if rewardarray[i] != 0:
+            rewardarray[i] = rewardarray[i] * 20
     rewardarray.reverse()
     return rewardarray
 
