@@ -2,7 +2,7 @@
 import numpy as np
 import Environment
 import tensorflow as tf
-
+import random
 MAX_MEMORY_SIZE = 2000
 # hyperparameters
 n_obs = 200 * 300  # dimensionality of observations
@@ -13,6 +13,7 @@ gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
 save_path = 'models/Attempt1'
+INITIAL_EPSILON = 1
 
 # gamespace
 display = False
@@ -126,6 +127,7 @@ else:
     episode_number = int(load_path.split('-')[-1])
 
 # training loop
+epsilon = INITIAL_EPSILON
 while True:
 
 
@@ -139,7 +141,14 @@ while True:
     feed = {tf_x: np.reshape(x, (1, -1))}
     aprob = sess.run(tf_aprob, feed);
     aprob = aprob[0, :]
-    action = np.random.choice(n_actions, p=aprob)
+    if random.random() > epsilon and epsilon > 0:
+
+        action = random.randint(0, 3)
+        epsilon -= episode_number / 10000
+    else:
+        action = np.random.choice(n_actions, p=aprob)
+
+
     label = np.zeros_like(aprob);
     label[action] = 1
 
@@ -170,8 +179,9 @@ while True:
         running = len(rs)
         if episode_number % 2:
         #if True:
-            rs = discount_rewards(rs)
             rs2 = discount_smallrewards(rs2)
+            rs = discount_rewards(rs)
+
             for i in range(len(rs)):
                 rs[i] += rs2[i]
 

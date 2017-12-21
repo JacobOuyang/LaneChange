@@ -39,6 +39,11 @@ class GameV1:
                 updatingcar = self.Game[i][j]
                 if (isinstance(updatingcar, Cars.PlayerCar) == False):
                     updatingcar.updatePos()
+                    randomint = random.random()
+                    if randomint <0.05:
+                        updatingcar.position += 0.2
+                    if randomint >0.95:
+                        updatingcar.position -=2
                     if updatingcar.GetPos() >= 1000:
                         self.Game[i].pop(j)
                         self.Game[i].insert(0, updatingcar)
@@ -54,7 +59,7 @@ class GameV1:
         if self.render:
 
             cv2.imshow('game image', self.imagearray)
-            cv2.waitKey(100)
+            cv2.waitKey(10000)
 
         if self.checkColission():
             print("crash")
@@ -93,7 +98,7 @@ class GameV1:
 
         elif action == 1:
             self.searchforPlayerCar()
-            playercar.updateVeloc(playercar.GetVel() + 2)
+            playercar.updateVeloc(playercar.GetVel() + 1)
             return 0
         elif action == 2:
 
