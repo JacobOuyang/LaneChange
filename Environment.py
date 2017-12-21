@@ -98,7 +98,7 @@ class GameV1:
 
         elif action == 1:
             self.searchforPlayerCar()
-            playercar.updateVeloc(playercar.GetVel() + 1)
+            playercar.updateVeloc(playercar.GetVel() + 0.3)
             return 0
         elif action == 2:
 
