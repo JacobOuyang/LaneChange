@@ -20,6 +20,9 @@ class Car:
             self.collisionbox[1] = [self.position-1, self.position+1]
     def CollisionBox(self):
         return self.collisionbox
+    def updateVeloc(self, inputvel):
+
+        self.velocity = inputvel
 
 
 class PlayerCar(Car):
@@ -33,8 +36,8 @@ class PlayerCar(Car):
 
     def updateVeloc(self, inputvel):
         temp = self.velocity
-        if (inputvel != 0):
-            self.velocity = inputvel
-            self.velchange = self.velocity - temp
+
+        self.velocity = inputvel
+        self.velchange = self.velocity - temp
 
 
