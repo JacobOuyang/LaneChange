@@ -17,7 +17,7 @@ class GameV1:
         self.gameplayerindexvert =0
         self.gameplayerindexhorz =0
         self.render = render
-
+        self.temprestore = []
 
     def populateGameArray(self):
         self.Game=[]
@@ -31,6 +31,7 @@ class GameV1:
         self.Game[self.lanes-1][0] = Cars.PlayerCar(0, self.Game[self.lanes-1][1].velocity)
 
     def updateGameArray(self, action):
+        self.tempstore = self.Game
         self.searchforPlayerCar()
         reward= self.updatePlayerCar(action)
 
@@ -98,7 +99,7 @@ class GameV1:
 
         elif action == 1:
             self.searchforPlayerCar()
-            playercar.updateVeloc(playercar.GetVel() + 0.3)
+            playercar.updateVeloc(playercar.GetVel() + 1)
             return 0
         elif action == 2:
 
@@ -203,14 +204,16 @@ class GameV1:
         for i in range(20):
             for j in range(rightmax-leftmax):
                 self.imagearray[i+10 + lanenumber*40][j+leftmax] = value
-    def runGame(self, action):
+    def runGame(self, action, greedy):
 
         #if self.i == 0:
          #   temp = [0,0]
         #else:
 
         temp = self.updateGameArray(action)
-
+        if greedy == True and temp[0] != 0:
+            self.Game=self.temprestore
+            return "REDO", 0, 0, 0
         if temp[0] == 0:
             return self.imagearray, temp[0], temp[1], False
             #self.i = 1
