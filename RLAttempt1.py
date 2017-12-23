@@ -52,7 +52,7 @@ def discount_smallrewards(rewardarray):
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i] * 20
+            rewardarray[i] = rewardarray[i] * 2
     rewardarray.reverse()
     return rewardarray
 
@@ -144,8 +144,13 @@ while True:
     aprob = aprob[0, :]
     while WillContinue == False:
         if random.random() > epsilon and epsilon > 0:
-
-            action = random.randint(0, 3)
+            findaction = random.random()
+            for i in aprob:
+                findaction -= aprob[i]
+                if findaction <= 0:
+                    action = i
+                    break
+            #action = random.randint(0, 3)
             epsilon -= episode_number / 10000
             observation, reward, smallreward, done = game.runGame(action, True)
             if observation == "REDO":
