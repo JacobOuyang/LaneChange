@@ -12,7 +12,7 @@ learning_rate = 1e-3
 gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models/Attempt1'
+save_path = 'models/Attempt2'
 INITIAL_EPSILON = 1
 
 # gamespace
@@ -25,6 +25,7 @@ running_reward = None
 reward_sum = 0
 observation = np.zeros(shape=(200,300))
 episode_number = 0
+WillContinue = False
 
 # initialize model
 tf_model = {}
@@ -51,7 +52,7 @@ def discount_smallrewards(rewardarray):
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i] * 20
+            rewardarray[i] = rewardarray[i] * 3
     rewardarray.reverse()
     return rewardarray
 
@@ -131,7 +132,7 @@ epsilon = INITIAL_EPSILON
 while True:
 
 
-
+    WillContinue = False
     # preprocess the observation, set input to network to be difference image
     cur_x = observation
     x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
@@ -141,19 +142,27 @@ while True:
     feed = {tf_x: np.reshape(x, (1, -1))}
     aprob = sess.run(tf_aprob, feed);
     aprob = aprob[0, :]
-    if random.random() > epsilon and epsilon > 0:
+    while WillContinue == False:
+        if random.random() > epsilon and epsilon > 0:
 
-        action = random.randint(0, 3)
-        epsilon -= episode_number / 10000
-    else:
-        action = np.random.choice(n_actions, p=aprob)
+            action = random.randint(0, 3)
+            epsilon -= episode_number / 1000000
+            observation, reward, smallreward, done = game.runGame(action, True)
+            if observation == "REDO":
+                WillContinue = False
+            else:
+                WillContinue = True
+        else:
+            action = np.random.choice(n_actions, p=aprob)
+            observation, reward, smallreward, done = game.runGame(action, False)
+            WillContinue = True
 
 
     label = np.zeros_like(aprob);
     label[action] = 1
 
     # step the environment and get new measurements
-    observation, reward, smallreward, done = game.runGame(action)
+
     reward_sum += reward
 
     # record game history
@@ -179,6 +188,7 @@ while True:
         running = len(rs)
         if episode_number % 2:
         #if True:
+
             rs2 = discount_smallrewards(rs2)
             rs = discount_rewards(rs)
 
