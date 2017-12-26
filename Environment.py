@@ -53,14 +53,15 @@ class GameV1:
         updatingcar = self.Game[self.playerlanes][self.playercarposition]
         updatingcar.updatePos()
         if action ==2 or action ==3:
-            updatingcar.velocity = self.Game[self.playerlanes][self.playercarposition+1].GetVel()
-        print(updatingcar.GetVel())
+            if self.playercarposition != len(self.Game[self.playerlanes]) -1:
+                updatingcar.velocity = self.Game[self.playerlanes][self.playercarposition+1].GetVel()
+        print(updatingcar.velocity)
 
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
         if self.render:
 
             cv2.imshow('game image', self.imagearray)
-            cv2.waitKey(10000)
+            cv2.waitKey(100)
 
         if self.checkColission():
             print("crash")
@@ -96,7 +97,7 @@ class GameV1:
                 #    return playercar.velchange
                 #if playercar.velchange < 0:
                 #    return playercar.velchange
-
+                return 0
         elif action == 1:
             self.searchforPlayerCar()
             playercar.updateVeloc(playercar.GetVel() + 1)
@@ -221,7 +222,7 @@ class GameV1:
             #self.i=0
             self.populateGameArray()
 
-            return self.imagearray, temp[0], temp[1], True
+            return self.imagearray, temp[0], 0, True
 
 
 

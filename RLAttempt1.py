@@ -3,13 +3,13 @@ import numpy as np
 import Environment
 import tensorflow as tf
 import random
-MAX_MEMORY_SIZE = 2000
+MAX_MEMORY_SIZE = 300
 # hyperparameters
 n_obs = 200 * 300  # dimensionality of observations
 h = 200  # number of hidden layer neurons
 n_actions = 4  # number of available actions
 learning_rate = 1e-3
-gamma = .6  # discount factor for reward
+gamma = .8  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
 save_path = 'models/Attempt1'
@@ -38,9 +38,11 @@ with tf.variable_scope('layer_two', reuse=False):
 def discount_rewards(rewardarray):
     rewardarray.reverse()
     if rewardarray[0] > 0:
-        rewardarray[0] = len(rewardarray)/330 * rewardarray[0] *2
+        rewardarray[0] = len(rewardarray)/300 * rewardarray[0] *3
     else:
-        rewardarray[0] = rewardarray[0]
+        rewardarray[0] = rewardarray[0]*900/(len(rewardarray)*300) *3
+    if rewardarray[0] < -1:
+        rewardarray[0] = -1
 
     for i in range(len(rewardarray) -1):
 
