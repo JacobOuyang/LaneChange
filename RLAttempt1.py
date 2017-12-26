@@ -3,6 +3,7 @@ import numpy as np
 import Environment
 import tensorflow as tf
 import random
+
 MAX_MEMORY_SIZE = 300
 # hyperparameters
 n_obs = 200 * 300  # dimensionality of observations
@@ -40,7 +41,8 @@ def discount_rewards(rewardarray):
     if rewardarray[0] > 0:
         rewardarray[0] = len(rewardarray)/300 * rewardarray[0] *3
     else:
-        rewardarray[0] = rewardarray[0]*900/(len(rewardarray)*300) *3
+        rewardarray[0] = rewardarray[0] * np.exp(3, (300-len(rewardarray))/300)
+
     if rewardarray[0] < -1:
         rewardarray[0] = -1
 
