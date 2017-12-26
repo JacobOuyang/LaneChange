@@ -3,7 +3,8 @@ import numpy as np
 import Environment
 import tensorflow as tf
 import random
-MAX_MEMORY_SIZE = 2000
+import math
+MAX_MEMORY_SIZE = 350
 # hyperparameters
 n_obs = 200 * 300  # dimensionality of observations
 h = 200  # number of hidden layer neurons
@@ -12,7 +13,7 @@ learning_rate = 1e-3
 gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models/Attempt2'
+save_path = 'models/Attempt1'
 INITIAL_EPSILON = 1
 
 # gamespace
@@ -52,7 +53,7 @@ def discount_smallrewards(rewardarray):
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i] * 3
+            rewardarray[i] = rewardarray[i] * 6
     rewardarray.reverse()
     return rewardarray
 
@@ -144,9 +145,14 @@ while True:
     aprob = aprob[0, :]
     while WillContinue == False:
         if random.random() > epsilon and epsilon > 0:
-
-            action = random.randint(0, 3)
-            epsilon -= episode_number / 1000000
+            findaction = random.random()
+            for i in aprob:
+                findaction -= aprob[i]
+                if findaction <= 0:
+                    action = i
+                    break
+            #action = random.randint(0, 3)
+            epsilon -= episode_number / 100000
             observation, reward, smallreward, done = game.runGame(action, True)
             if observation == "REDO":
                 WillContinue = False
@@ -200,7 +206,11 @@ while True:
                 excess = 0
             if excess > 0:
                 for i in range(excess):
-                    lowest = np.argmin(rs.abs())
+                    rsabs = []
+                    for i in range(len(rs)):
+                        rsabs.append(math.fabs(rs[i]))
+                    lowest = np.argmin(rsabs)
+                    rsabs = []
                     rs.pop(lowest)
                     xs.pop(lowest)
                     ys.pop(lowest)

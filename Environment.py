@@ -102,7 +102,7 @@ class GameV1:
                 #    return playercar.velchange
                 #if playercar.velchange < 0:
                 #    return playercar.velchange
-
+                return 0
         elif action == 1:
             self.searchforPlayerCar()
             playercar.updateVeloc(playercar.GetVel() + 0.3)
@@ -227,7 +227,7 @@ class GameV1:
             #self.i=0
             self.populateGameArray()
 
-            return self.imagearray, temp[0], temp[1], True
+            return self.imagearray, temp[0], 0, True
 
 
 
