@@ -39,12 +39,16 @@ class GameV1:
             for j in range(len(self.Game[i])):
                 updatingcar = self.Game[i][j]
                 if (isinstance(updatingcar, Cars.PlayerCar) == False):
+
+                 #   randomint = random.random()
+                 #   if randomint <0.05:
+                 #       updatingcar.position += 0.2
+                 #   if randomint >0.99:
+                 #       tempvel = updatingcar.GetVel()
+                 #       updatingcar.updateVeloc(2)
                     updatingcar.updatePos()
-                    randomint = random.random()
-                    if randomint <0.05:
-                        updatingcar.position += 0.2
-                    if randomint >0.95:
-                        updatingcar.position -=2
+                 #   if updatingcar.GetVel() ==2:
+                 #       updatingcar.updateVeloc(tempvel)
                     if updatingcar.GetPos() >= 1000:
                         self.Game[i].pop(j)
                         self.Game[i].insert(0, updatingcar)
@@ -55,7 +59,7 @@ class GameV1:
         if action ==2 or action ==3:
             if self.playercarposition != len(self.Game[self.playerlanes]) -1:
                 updatingcar.velocity = self.Game[self.playerlanes][self.playercarposition+1].GetVel()
-        print(updatingcar.velocity)
+        print(updatingcar.GetVel())
 
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
         if self.render:
@@ -100,7 +104,7 @@ class GameV1:
                 return 0
         elif action == 1:
             self.searchforPlayerCar()
-            playercar.updateVeloc(playercar.GetVel() + 1)
+            playercar.updateVeloc(playercar.GetVel() + 0.3)
             return 0
         elif action == 2:
 

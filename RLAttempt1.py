@@ -3,8 +3,8 @@ import numpy as np
 import Environment
 import tensorflow as tf
 import random
-
-MAX_MEMORY_SIZE = 300
+import math
+MAX_MEMORY_SIZE = 350
 # hyperparameters
 n_obs = 200 * 300  # dimensionality of observations
 h = 200  # number of hidden layer neurons
@@ -38,28 +38,29 @@ with tf.variable_scope('layer_two', reuse=False):
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
 def discount_rewards(rewardarray):
     rewardarray.reverse()
-    if rewardarray[0] > 0:
-        rewardarray[0] = len(rewardarray)/300 * rewardarray[0] *3
-    else:
-        rewardarray[0] = rewardarray[0] * np.exp(3, (300-len(rewardarray))/300)
+    for i in range(len(rewardarray)):
+        if rewardarray[i] != 0:
+            if rewardarray[i] > 0:
+                rewardarray[i] = (len(rewardarray)-i)/300 * rewardarray[0]
+            else:
+                rewardarray[i] = rewardarray[i] * math.pow(2, (300-len(rewardarray)+i)/300)
 
-    if rewardarray[0] < -1:
-        rewardarray[0] = -1
 
-    for i in range(len(rewardarray) -1):
-
-        rewardarray[i+1] = rewardarray[i] * gamma
+    for i in range(len(rewardarray)-1):
+        if rewardarray[i+1] == 0:
+            rewardarray[i+1] = rewardarray[i] * gamma
     rewardarray.reverse()
     return rewardarray
+"""
 def discount_smallrewards(rewardarray):
     rewardarray.reverse()
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i] * 2
+            rewardarray[i] = rewardarray[i]
     rewardarray.reverse()
     return rewardarray
-
+"""
 
 # tf operations
 def tf_discount_rewards(tf_r):  # tf_r ~ [game_steps,1]
@@ -155,7 +156,7 @@ while True:
                     action = i
                     break
             #action = random.randint(0, 3)
-            epsilon -= episode_number / 10000
+            epsilon -= episode_number / 100000
             observation, reward, smallreward, done = game.runGame(action, True)
             if observation == "REDO":
                 WillContinue = False
@@ -197,7 +198,8 @@ while True:
         running = len(rs)
         if episode_number % 2:
         #if True:
-            rs2 = discount_smallrewards(rs2)
+
+           # rs2 = discount_smallrewards(rs2)
             rs = discount_rewards(rs)
 
             for i in range(len(rs)):
@@ -208,7 +210,11 @@ while True:
                 excess = 0
             if excess > 0:
                 for i in range(excess):
-                    lowest = np.argmin(rs.abs())
+                    rsabs = []
+                    for i in range(len(rs)):
+                        rsabs.append(math.fabs(rs[i]))
+                    lowest = np.argmin(rsabs)
+                    rsabs = []
                     rs.pop(lowest)
                     xs.pop(lowest)
                     ys.pop(lowest)
