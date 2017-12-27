@@ -162,7 +162,7 @@ train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 
 # training loop
-epsilon = 0.25 * math.exp(-.5*episode_number)
+epsilon = 0.25 * math.pow(episode_number, -1/4.0)
 while True:
 
     # preprocess the observation, set input to network to be difference image
@@ -176,6 +176,7 @@ while True:
     aprob = aprob[0, :]
 
     if random.random() < epsilon and epsilon > 0:
+        # action = argmax_a q(s, a)
         action = random.randint(0, 3)
         observation, reward, smallreward, done = game.runGame(action)
 
@@ -208,7 +209,7 @@ while True:
 
     if done:
         # update running reward
-        epsilon =0.25 *  math.exp(-.5*episode_number)
+        epsilon =0.25 *  math.pow(episode_number, -1 / 4.0)
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
         running = len(rs)
         if episode_number % 2:
