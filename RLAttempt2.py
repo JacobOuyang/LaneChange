@@ -18,11 +18,11 @@ save_path = 'Attempt2_models/Attempt2'
 INITIAL_EPSILON = .25
 
 # gamespace
-display = True
+display = False
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
-xs, rs, rs2, ys = [], [], [], []
+xs, rs, rs2, ys, vel, velavg = [], [], [], [], [], []
 running_reward = None
 reward_sum = 0
 observation = np.zeros(shape=(200,300))
@@ -37,14 +37,18 @@ with tf.variable_scope('layer_one', reuse=False):
 with tf.variable_scope('layer_two', reuse=False):
     xavier_l2 = tf.truncated_normal_initializer(mean=0, stddev=1. / np.sqrt(h), dtype=tf.float32)
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
-def discount_rewards(rewardarray):
+def discount_rewards(rewardarray, velocityarray):
     rewardarray.reverse()
+    velocityarray.reverse()
+    gamenumber = 0
     for i in range(len(rewardarray)):
         if rewardarray[i] != 0:
             if rewardarray[i] > 0:
                 rewardarray[i] = (len(rewardarray)-i)/300 * rewardarray[0]
+                gamenumber +=1
             else:
-                rewardarray[i] = rewardarray[i] * math.pow(2, (300-len(rewardarray)+i)/300)
+                rewardarray[i] = rewardarray[i] * math.pow(6-velocityarray[gamenumber], (300-len(rewardarray)+i)/300)
+                gamenumber+=1
 
 
     for i in range(len(rewardarray)-1):
@@ -162,7 +166,7 @@ train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 
 # training loop
-epsilon = 0.25 * math.exp(-.5*episode_number)
+epsilon = math.pow(episode_number+1, -1/4)
 while True:
 
     # preprocess the observation, set input to network to be difference image
@@ -177,11 +181,11 @@ while True:
 
     if random.random() < epsilon and epsilon > 0:
         action = random.randint(0, 3)
-        observation, reward, smallreward, done = game.runGame(action)
+        observation, reward, smallreward, velocity, done = game.runGame(action)
 
     else:
         action = np.random.choice(n_actions, p=aprob)
-        observation, reward, smallreward, done = game.runGame(action)
+        observation, reward, smallreward, velocity, done = game.runGame(action)
 
 
     label = action
@@ -205,17 +209,19 @@ while True:
     ys.append(label)
     rs.append(reward)
     rs2.append(smallreward)
-
+    vel.append(velocity)
     if done:
         # update running reward
-        epsilon =0.25 *  math.exp(-.5*episode_number)
+        epsilon = math.pow(episode_number+1, -1/4)
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
         running = len(rs)
+        velavg.append(np.mean(vel))
+        vel = []
         if episode_number % 2:
         #if True:
 
            # rs2 = discount_smallrewards(rs2)
-            rs = discount_rewards(rs)
+            rs = discount_rewards(rs, velavg)
 
             for i in range(len(rs)):
                 rs[i] += rs2[i]
@@ -248,7 +254,7 @@ while True:
 
 
             # bookkeeping
-            xs, rs, rs2, ys = [], [], [], []  # reset game history
+            xs, rs, rs2, ys, velavg = [], [], [], [], [] # reset game history
 
         # print progress console
         if episode_number % 5 == 0:

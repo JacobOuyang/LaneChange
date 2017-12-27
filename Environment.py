@@ -69,12 +69,12 @@ class GameV1:
 
         if self.checkColission():
             print("crash")
-            return -1, 0
+            return -1, 0, updatingcar.GetVel()
         elif updatingcar.GetPos() >=1000:
             print("win")
-            return 1, reward
+            return 1, reward, updatingcar.GetVel()
         else:
-            return 0, reward
+            return 0, reward, updatingcar.GetVel()
 
 
 
@@ -218,13 +218,13 @@ class GameV1:
         temp = self.updateGameArray(action)
 
         if temp[0] == 0:
-            return self.imagearray, temp[0], temp[1], False
+            return self.imagearray, temp[0], temp[1], temp[2], False
             #self.i = 1
         else:
             #self.i=0
             self.populateGameArray()
 
-            return self.imagearray, temp[0], 0, True
+            return self.imagearray, temp[0], 0, temp[2], True
 
 
 
