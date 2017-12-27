@@ -27,7 +27,7 @@ running_reward = None
 reward_sum = 0
 observation = np.zeros(shape=(200,300))
 episode_number = 0
-WillContinue = False
+WillContinue = True
 
 # initialize model
 tf_model = {}
@@ -166,9 +166,9 @@ train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 
 # training loop
-epsilon = math.pow(episode_number+1, -1/4)
+epsilon = 0.25* math.pow(episode_number+1, -1/4)
 while True:
-
+    WillContinue = True
     # preprocess the observation, set input to network to be difference image
     cur_x = observation
     x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
@@ -178,14 +178,20 @@ while True:
     feed = {tf_x: np.reshape(x, (1, -1))}
     aprob = sess.run(tf_aprob, feed);
     aprob = aprob[0, :]
+    while WillContinue:
+        if random.random() < epsilon and epsilon > 0:
+            action = random.randint(0, 3)
+            observation, reward, smallreward, velocity, done = game.runGame(action, True)
+            if observation == "REDO":
+                WillContinue = True
+            else:
+                WillContinue = False
 
-    if random.random() < epsilon and epsilon > 0:
-        action = random.randint(0, 3)
-        observation, reward, smallreward, velocity, done = game.runGame(action)
 
-    else:
-        action = np.random.choice(n_actions, p=aprob)
-        observation, reward, smallreward, velocity, done = game.runGame(action)
+        else:
+            action = np.argmax(aprob)
+            observation, reward, smallreward, velocity, done = game.runGame(action, False)
+            WillContinue == True
 
 
     label = action
@@ -211,15 +217,16 @@ while True:
     rs2.append(smallreward)
     vel.append(velocity)
     if done:
+        print("done")
         # update running reward
-        epsilon = math.pow(episode_number+1, -1/4)
+        epsilon =  0.25 * math.pow(episode_number+1, -1/4)
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
         running = len(rs)
         velavg.append(np.mean(vel))
         vel = []
         if episode_number % 2:
         #if True:
-
+            print("training")
            # rs2 = discount_smallrewards(rs2)
             rs = discount_rewards(rs, velavg)
 
