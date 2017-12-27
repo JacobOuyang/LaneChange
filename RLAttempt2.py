@@ -4,6 +4,7 @@ import Environment
 import tensorflow as tf
 import random
 import math
+import os
 MAX_MEMORY_SIZE = 350
 # hyperparameters
 n_obs = 200 * 300  # dimensionality of observations
@@ -13,8 +14,8 @@ learning_rate = 1e-3
 gamma = .8  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models/Attempt1'
-INITIAL_EPSILON = 1
+save_path = 'Attempt2_models/Attempt2'
+INITIAL_EPSILON = .25
 
 # gamespace
 display = True
@@ -73,9 +74,9 @@ def tf_discount_rewards(tf_r):  # tf_r ~ [game_steps,1]
 def tf_policy_forward(x):  # x ~ [1,D]
     h = tf.matmul(x, tf_model['W1'])
     h = tf.nn.relu(h)
-    logp = tf.matmul(h, tf_model['W2'])
-    p = tf.nn.softmax(logp)
-    return p
+    logits = tf.matmul(h, tf_model['W2'])
+    p = tf.nn.softmax(logits)
+    return p, logits
 
 
 # downsampling
@@ -91,7 +92,7 @@ def tf_policy_forward(x):  # x ~ [1,D]
 
 # tf placeholders
 tf_x = tf.placeholder(dtype=tf.float32, shape=[None, n_obs], name="tf_x")
-tf_y = tf.placeholder(dtype=tf.float32, shape=[None, n_actions], name="tf_y")
+tf_y = tf.placeholder(dtype=tf.int32, shape=[None], name="tf_y")
 tf_epr = tf.placeholder(dtype=tf.float32, shape=[None, 1], name="tf_epr")
 
 # tf reward processing (need tf_discounted_epr for policy gradient wizardry)
@@ -104,15 +105,38 @@ tf_epr /= tf.sqrt(tf_variance + 1e-6)
 
 
 # tf optimizer op
-tf_aprob = tf_policy_forward(tf_x)
-loss = tf.nn.l2_loss(tf_y - tf_aprob)
+tf_aprob, tf_logits = tf_policy_forward(tf_x)
+tf_one_hot = tf.one_hot(tf_y, n_actions)
+l2_loss = tf.nn.l2_loss(tf_one_hot - tf_aprob, name="l2_loss")
+cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf_y, logits = tf_logits)
+ce_loss = tf.reduce_mean(cross_entropy, name="ce_loss")
+pg_loss = tf.reduce_mean(tf_epr * cross_entropy, name="pg_loss")
 optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-tf_grads = optimizer.compute_gradients(loss, var_list=tf.trainable_variables(), grad_loss=tf_epr)
+tf_grads = optimizer.compute_gradients(pg_loss, var_list=tf.trainable_variables()) #, grad_loss=tf_epr)
 train_op = optimizer.apply_gradients(tf_grads)
+
+
+# write out losses to tensorboard
+
+grad_summaries = []
+for g, v in tf_grads:
+    if g is not None:
+        grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
+        sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
+        grad_summaries.append(grad_hist_summary)
+        grad_summaries.append(sparsity_summary)
+grad_summaries_merged = tf.summary.merge(grad_summaries)
+
+l2_loss_summary = tf.summary.scalar("l2_loss", l2_loss)
+ce_loss_summary = tf.summary.scalar("ce_loss", ce_loss)
+pg_loss_summary = tf.summary.scalar("pg_loss", pg_loss)
+
+train_summary_op = tf.summary.merge([l2_loss_summary, ce_loss_summary, pg_loss_summary, grad_summaries_merged])
+
 
 # tf graph initialization
 sess = tf.InteractiveSession()
-tf.global_variables_initializer().run()
+
 
 # try load saved model
 saver = tf.train.Saver(tf.global_variables())
@@ -126,18 +150,21 @@ except:
     print(
     "no saved model to load. starting new session")
     load_was_success = False
+    tf.global_variables_initializer().run()
 else:
     print(
     "loaded model: {}".format(load_path))
-    saver = tf.train.Saver(tf.global_variables())
     episode_number = int(load_path.split('-')[-1])
 
+
+train_summary_dir = os.path.join(save_dir, "summaries", "train")
+train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
+
+
 # training loop
-epsilon = INITIAL_EPSILON
+epsilon = 0.25 * math.exp(-.5*episode_number)
 while True:
 
-
-    WillContinue = False
     # preprocess the observation, set input to network to be difference image
     cur_x = observation
     x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
@@ -147,29 +174,17 @@ while True:
     feed = {tf_x: np.reshape(x, (1, -1))}
     aprob = sess.run(tf_aprob, feed);
     aprob = aprob[0, :]
-    while WillContinue == False:
-        if random.random() > epsilon and epsilon > 0:
-            findaction = random.random()
-            for i in aprob:
-                findaction -= aprob[i]
-                if findaction <= 0:
-                    action = i
-                    break
-            #action = random.randint(0, 3)
-            epsilon = math.pow(episode_number, -1/100)
-            observation, reward, smallreward, done = game.runGame(action, True)
-            if observation == "REDO":
-                WillContinue = False
-            else:
-                WillContinue = True
-        else:
-            action = np.random.choice(n_actions, p=aprob)
-            observation, reward, smallreward, done = game.runGame(action, False)
-            WillContinue = True
+
+    if random.random() < epsilon and epsilon > 0:
+        action = random.randint(0, 3)
+        observation, reward, smallreward, done = game.runGame(action)
+
+    else:
+        action = np.random.choice(n_actions, p=aprob)
+        observation, reward, smallreward, done = game.runGame(action)
 
 
-    label = np.zeros_like(aprob);
-    label[action] = 1
+    label = action
 
     # step the environment and get new measurements
 
@@ -193,7 +208,7 @@ while True:
 
     if done:
         # update running reward
-
+        epsilon =0.25 *  math.exp(-.5*episode_number)
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
         running = len(rs)
         if episode_number % 2:
@@ -223,11 +238,15 @@ while True:
 
             x_t = np.vstack(xs)
             r_t = np.vstack(rs)
-            y_t = np.vstack(ys)
+            y_t = np.stack(ys)
 
             # parameter update
             feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
-            _ = sess.run(train_op, feed)
+            loss_val, _, train_summaries = sess.run([ce_loss, train_op, train_summary_op], feed)
+
+            train_summary_writer.add_summary(train_summaries, episode_number)
+
+
             # bookkeeping
             xs, rs, rs2, ys = [], [], [], []  # reset game history
 
@@ -244,6 +263,8 @@ while True:
 
         reward_sum = 0
         if episode_number % 1000 == 0:
+
             saver.save(sess, save_path, global_step=episode_number)
             print(
             "SAVED MODEL #{}".format(episode_number))
+
