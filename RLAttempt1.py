@@ -17,7 +17,7 @@ save_path = 'models/Attempt1'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = True
+display = False
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
