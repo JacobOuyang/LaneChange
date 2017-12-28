@@ -27,7 +27,7 @@ running_reward = None
 reward_sum = 0
 observation = np.zeros(shape=(200,300))
 episode_number = 0
-WillContinue = False
+WillContinue = True
 
 # initialize model
 tf_model = {}
@@ -168,7 +168,7 @@ train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 # training loop
 epsilon = .25 * math.pow(episode_number+1, -1/4)
 while True:
-
+    WillContinue = True
     # preprocess the observation, set input to network to be difference image
     cur_x = observation
     x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
@@ -180,14 +180,16 @@ while True:
     aprob = aprob[0, :]
 
     if random.random() < epsilon and epsilon > 0:
-        #action = random.randint(0, 3)
-        action = np.random.choice(n_actions, p=aprob)
-        observation, reward, smallreward, velocity, done = game.runGame(action)
+        while WillContinue:
+            action = random.randint(0, 3)
+            observation, reward, smallreward, velocity, done, redo = game.runGame(action, True)
+            if redo == "REDO":
+                WillContinue = True
+            else:
+                WillContinue = False
     else:
-        #action = np.random.choice(n_actions, p=aprob)
         action = np.argmax(aprob)
-        observation, reward, smallreward, velocity, done = game.runGame(action)
-
+        observation, reward, smallreward, velocity, done, redo = game.runGame(action, False)
 
     label = action
 
