@@ -73,10 +73,10 @@ class GameV1:
                 print("(crash)")
             else:
                 print("crash")
-            return -1, 0, updatingcar.GetVel()
+            return -1000, 0, updatingcar.GetVel()
         elif updatingcar.GetPos() >=1000:
             print("win")
-            return 1, reward, updatingcar.GetVel()
+            return 1000, reward, updatingcar.GetVel()
         else:
             return 0, reward, updatingcar.GetVel()
 
@@ -109,7 +109,7 @@ class GameV1:
         elif action == 1:
             self.searchforPlayerCar()
             playercar.updateVeloc(playercar.GetVel() + 0.3)
-            return 0
+            return 0.3
         elif action == 2:
 
             if self.playerlanes != 0:
@@ -118,7 +118,11 @@ class GameV1:
                     if self.Game[self.playerlanes-1][i].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes-1].insert(i, playercar)
-                        return self.Game[self.playerlanes-1][i+1].GetVel() - 3
+                        return (self.Game[self.playerlanes-1][i+1].GetVel() - playercar.GetVel()) + 3.0 #speed gain + 3.0 lane change
+            else:
+                playercar.collide_to_wall()
+                return -1000
+
         elif action == 3:
 
             if self.playerlanes != self.lanes-1:
@@ -127,11 +131,18 @@ class GameV1:
                     if self.Game[self.playerlanes+1][j].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes+1].insert(j, playercar)
-                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetPos()
-
+                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel() + 2.0 # speed gain + 2.0 lane change
+            else:
+                playercar.collide_to_wall()
+                return -1000
         return 0
+
+
     def checkColission(self):
         playercar = self.Game[self.playerlanes][self.playercarposition]
+        if playercar.is_collided():
+            return True
+
         if self.checkBack(playercar):
             #print("1")
             return True
@@ -220,7 +231,7 @@ class GameV1:
         #else:
 
         temp = self.updateGameArray(action, greedy)
-        if temp[0] == -1 and greedy == True:
+        if temp[0] == -1000 and greedy == True:
             self.Game = self.tempstore
             return self.imagearray, 0, 0, 0, True, "REDO"
 
