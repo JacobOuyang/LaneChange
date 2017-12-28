@@ -14,15 +14,15 @@ learning_rate = 1e-3
 gamma = .99  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'Attempt6_models/Attempt6'
+save_path = 'Attempt5_models/Attempt5'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = True
+display = False
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
-xs, ep_rs, ep_rs2, ys, rs = [], [], [], [], []
+xs, rs, rs2, ys, vel, velavg = [], [], [], [], [], []
 running_reward = None
 reward_sum = 0
 observation = np.zeros(shape=(200,300))
@@ -37,13 +37,23 @@ with tf.variable_scope('layer_one', reuse=False):
 with tf.variable_scope('layer_two', reuse=False):
     xavier_l2 = tf.truncated_normal_initializer(mean=0, stddev=1. / np.sqrt(h), dtype=tf.float32)
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
-
-
-def discount_rewards(rewardarray):
+def discount_rewards(rewardarray, velocityarray):
     rewardarray.reverse()
-    for i in range(len(rewardarray)-1):
-        rewardarray[i+1] = rewardarray[i+1] + rewardarray[i] * gamma
+    velocityarray.reverse()
+    gamenumber = 0
+    for i in range(len(rewardarray)):
+        if rewardarray[i] != 0:
+            if rewardarray[i] > 0:
+                rewardarray[i] = (len(rewardarray)-i)/300 * rewardarray[0]
+                gamenumber +=1
+            else:
+                rewardarray[i] = rewardarray[i] * math.pow(6-velocityarray[gamenumber], (300-len(rewardarray)+i)/300)
+                gamenumber+=1
 
+
+    for i in range(len(rewardarray)-1):
+        if rewardarray[i+1] == 0:
+            rewardarray[i+1] = rewardarray[i] * gamma
     rewardarray.reverse()
     return rewardarray
 
@@ -52,7 +62,7 @@ def discount_smallrewards(rewardarray):
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i] *1
+            rewardarray[i] = rewardarray[i] *5
     rewardarray.reverse()
     return rewardarray
 
@@ -92,8 +102,8 @@ tf_epr = tf.placeholder(dtype=tf.float32, shape=[None, 1], name="tf_epr")
 # tf reward processing (need tf_discounted_epr for policy gradient wizardry)
 #tf_discounted_epr = tf_discount_rewards(tf_epr)
 tf_mean, tf_variance = tf.nn.moments(tf_epr, [0], shift=None, name="reward_moments")
-tf_reward = tf_epr - tf_mean
-tf_reward /= tf.sqrt(tf_variance + 1e-6)
+tf_epr -= tf_mean
+tf_epr /= tf.sqrt(tf_variance + 1e-6)
 
 
 
@@ -104,7 +114,7 @@ tf_one_hot = tf.one_hot(tf_y, n_actions)
 l2_loss = tf.nn.l2_loss(tf_one_hot - tf_aprob, name="tf_l2_loss")
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf_y, logits = tf_logits)
 ce_loss = tf.reduce_mean(cross_entropy, name="tf_ce_loss")
-pg_loss = tf.reduce_mean(tf_reward * cross_entropy, name="tf_pg_loss")
+pg_loss = tf.reduce_mean(tf_epr * cross_entropy, name="tf_pg_loss")
 optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
 tf_grads = optimizer.compute_gradients(pg_loss, var_list=tf.trainable_variables()) #, grad_loss=tf_epr)
 train_op = optimizer.apply_gradients(tf_grads)
@@ -190,29 +200,25 @@ while True:
     x= np.reshape(x, [-1])
     xs.append(x)
     ys.append(label)
-    ep_rs.append(reward)
-    ep_rs2.append(smallreward)
-
+    rs.append(reward)
+    rs2.append(smallreward)
+    vel.append(velocity)
     if done:
         # update running reward
         epsilon = math.pow(episode_number+1, -1/4)
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-        running = len(ep_rs)
-
-        # compute discounted rewards per episode
-        #ep_rs = np.add(ep_rs, ep_rs2)
-        for i in range(len(ep_rs)):
-            ep_rs[i] = ep_rs[i] + ep_rs2[i]
-        ep_rs = discount_rewards(ep_rs)
-
-        # append episode rewards
-        rs.append(ep_rs)
-        # reset episode rewards
-        ep_rs = []
-        ep_rs2 = []
-
+        running = len(rs)
+        velavg.append(np.mean(vel))
+        vel = []
         if episode_number % 2:
         #if True:
+
+            rs2 = discount_smallrewards(rs2)
+            rs = discount_rewards(rs, velavg)
+
+            for i in range(len(rs)):
+                rs[i] += rs2[i]
+
             excess = len(rs) - MAX_MEMORY_SIZE
             if excess < 0:
                 excess = 0
@@ -230,12 +236,12 @@ while True:
 
 
             x_t = np.vstack(xs)
-            r_t = np.reshape(np.concatenate(rs), newshape=[-1, 1])
+            r_t = np.vstack(rs)
             y_t = np.stack(ys)
 
             # parameter update
             feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
-            loss_val, op_op, reward_vals, train_summaries = sess.run([ce_loss, train_op, tf_reward, train_summary_op], feed)
+            loss_val, _, train_summaries = sess.run([ce_loss, train_op, train_summary_op], feed)
 
             train_summary_writer.add_summary(train_summaries, episode_number)
 

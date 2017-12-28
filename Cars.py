@@ -29,15 +29,6 @@ class PlayerCar(Car):
     def __init__(self, position, velocity):
         super().__init__(position, velocity)
         self.velchange = 0
-        self.collided = False
-
-    def collide_to_wall(self):
-        self.collided = True
-        self.velocity = 0
-
-    def is_collided(self):
-        return self.collided
-
     def updatePos(self):
         self.collisionbox[0] = [self.position - 1, self.position + 1]
         self.position += self.velocity
