@@ -27,8 +27,8 @@ class GameV1:
             currentposition = 0;
             while(currentposition<1000):
                 self.Game[i].append(Cars.Car(currentposition, 2+(1+0.3*(self.lanes-i-1))))
-                #currentposition += random.randrange(6,20)
-                currentposition += 10
+                currentposition += random.randrange(6,20)
+                #currentposition += 10
         self.Game[self.lanes-1][0] = Cars.PlayerCar(0, self.Game[self.lanes-1][1].velocity)
 
     def updateGameArray(self, action):
@@ -41,16 +41,17 @@ class GameV1:
                 updatingcar = self.Game[i][j]
                 if (isinstance(updatingcar, Cars.PlayerCar) == False):
 
-                    randomint = random.random()
+                    #randomint = random.random()
 
-                    if randomint <0.05:
-                        updatingcar.position += 0.2
-                    if randomint >0.99:
-                        tempvel = updatingcar.GetVel()
-                        updatingcar.updateVeloc(0)
+                    # if randomint <0.05:
+                    #     updatingcar.position += 0.2
+                    # if randomint >0.99:
+                    #     tempvel = updatingcar.GetVel()
+                    #     updatingcar.updateVeloc(0)
                     updatingcar.updatePos()
-                    if updatingcar.GetVel() ==0:
-                        updatingcar.updateVeloc(tempvel)
+
+                    #if updatingcar.GetVel() ==0:
+                    #    updatingcar.updateVeloc(tempvel)
                     if updatingcar.GetPos() >= 1000:
                         self.Game[i].pop(j)
                         self.Game[i].insert(0, updatingcar)
@@ -116,7 +117,7 @@ class GameV1:
                     if self.Game[self.playerlanes-1][i].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes-1].insert(i, playercar)
-                        return self.Game[self.playerlanes-1][i+1].GetVel() - 3
+                        return self.Game[self.playerlanes-1][i+1].GetVel() - playercar.GetVel()
         elif action == 3:
 
             if self.playerlanes != self.lanes-1:
@@ -125,7 +126,7 @@ class GameV1:
                     if self.Game[self.playerlanes+1][j].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes+1].insert(j, playercar)
-                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetPos()
+                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel()
 
         return 0
     def checkColission(self):

@@ -14,7 +14,7 @@ learning_rate = 1e-3
 gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp8/Attempt8'
+save_path = 'models_Attemp11/Attempt11'
 INITIAL_EPSILON = 1
 
 # gamespace
@@ -22,7 +22,7 @@ display = True
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
-xs, rs, rs2, ys = [], [], [], []
+xs, ep_rs, ep_rs2, rs, ys = [], [], [], [], []
 running_reward = None
 reward_sum = 0
 observation = np.zeros(shape=(200,300))
@@ -43,6 +43,15 @@ def discount_rewards(rewardarray):
         rewardarray[0] = len(rewardarray)/330 * rewardarray[0] *2
     else:
         rewardarray[0] = rewardarray[0]
+    #     rewardarray[i] = rewardarray[i] * math.pow(6 - velocityarray[gamenumber], (300 - len(rewardarray) + i) / 300)
+    # for i in range(len(rewardarray)):
+    #     if rewardarray[i] != 0:
+    #         if rewardarray[i] > 0:
+    #             rewardarray[i] = (len(rewardarray) - i) / 300 * rewardarray[0]
+    #             #gamenumber += 1
+    #         else:
+    #             rewardarray[i] = rewardarray[i] * math.pow(3,(300 - len(rewardarray) + i) / 300)
+    #             #gamenumber += 1
 
     for i in range(len(rewardarray) -1):
 
@@ -205,23 +214,29 @@ while True:
     x= np.reshape(x, [-1])
     xs.append(x)
     ys.append(label)
-    rs.append(reward)
-    rs2.append(smallreward)
+    ep_rs.append(reward)
+    ep_rs2.append(smallreward)
 
     if done:
         # update running reward
 
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-        running = len(rs)
+        running = len(ep_rs)
+        ep_rs2 = discount_smallrewards(ep_rs2)
+        ep_rs = discount_rewards(ep_rs)
+
+        for i in range(len(ep_rs)):
+            ep_rs[i] += ep_rs2[i]
+
+        # combine episode rewards
+        rs = rs + ep_rs
+        #reset episode rewards
+        ep_rs = []
+        ep_rs2 = []
+
         if episode_number % 2:
         #if True:
-
-            rs2 = discount_smallrewards(rs2)
-            rs = discount_rewards(rs)
-
-            for i in range(len(rs)):
-                rs[i] += rs2[i]
-
+            #rs = np.reshape(np.concatenate(rs), newshape=[-1, 1])
             excess = len(rs) - MAX_MEMORY_SIZE
             if excess < 0:
                 excess = 0
@@ -246,7 +261,7 @@ while True:
             feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
             _, train_summaries = sess.run([train_op, train_summary_op], feed)
             # bookkeeping
-            xs, rs, rs2, ys = [], [], [], []  # reset game history
+            xs, rs, ys = [], [], []  # reset game history
             train_summary_writer.add_summary(train_summaries, episode_number)
         # print progress console
         if episode_number % 5 == 0:
