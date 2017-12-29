@@ -70,15 +70,21 @@ class GameV1:
 
         if self.checkColission():
             if test:
-                print("(crash)")
+                print("(action {} --> crash)".format(action))
             else:
-                print("crash")
+                print("action {} --> crash".format(action))
             return -1000, 0, updatingcar.GetVel()
-        elif updatingcar.GetPos() >=1000:
-            print("win")
-            return 1000, reward, updatingcar.GetVel()
         else:
-            return 0, reward, updatingcar.GetVel()
+            if action == 2 or action == 3:
+                updatingcar.increment_made_turns()
+
+            if (updatingcar.GetPos() >=300 and updatingcar.count_made_turns() > 10) or \
+                (updatingcar.GetPos() >= 450 and updatingcar.count_made_turns() > 5) or \
+                    (updatingcar.GetPos() > 600):
+                print("win")
+                return 1000, reward, updatingcar.GetVel()
+            else:
+                return 0, reward, updatingcar.GetVel()
 
 
 
@@ -105,11 +111,11 @@ class GameV1:
                 #    return playercar.velchange
                 #if playercar.velchange < 0:
                 #    return playercar.velchange
-                return 0
+                return 0.5
         elif action == 1:
             self.searchforPlayerCar()
-            playercar.updateVeloc(playercar.GetVel() + 0.3)
-            return 0.3
+            playercar.updateVeloc(playercar.GetVel() + 0.1)
+            return 0.1
         elif action == 2:
 
             if self.playerlanes != 0:
@@ -118,11 +124,11 @@ class GameV1:
                     if self.Game[self.playerlanes-1][i].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes-1].insert(i, playercar)
-                        return (self.Game[self.playerlanes-1][i+1].GetVel() - playercar.GetVel()) + 3.0 #speed gain + 3.0 lane change
+                        return (self.Game[self.playerlanes-1][i+1].GetVel() - playercar.GetVel()) + 0.1 #speed gain + 3.0 lane change
             else:
                 playercar.collide_to_wall()
                 return -1000
-
+                #return 0
         elif action == 3:
 
             if self.playerlanes != self.lanes-1:
@@ -131,10 +137,11 @@ class GameV1:
                     if self.Game[self.playerlanes+1][j].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes+1].insert(j, playercar)
-                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel() + 2.0 # speed gain + 2.0 lane change
+                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel() + 0.3 # speed gain + 2.0 lane change
             else:
                 playercar.collide_to_wall()
                 return -1000
+                #return 0
         return 0
 
 

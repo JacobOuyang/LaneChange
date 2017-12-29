@@ -30,13 +30,21 @@ class PlayerCar(Car):
         super().__init__(position, velocity)
         self.velchange = 0
         self.collided = False
+        self.made_turn_count = 0
 
     def collide_to_wall(self):
         self.collided = True
         self.velocity = 0
 
+    def increment_made_turns(self):
+        self.made_turn_count += 1
+
+
     def is_collided(self):
         return self.collided
+
+    def count_made_turns(self):
+        return self.made_turn_count
 
     def updatePos(self):
         self.collisionbox[0] = [self.position - 1, self.position + 1]

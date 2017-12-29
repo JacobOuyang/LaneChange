@@ -18,7 +18,7 @@ save_path = 'Attempt6_models/Attempt6'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = True
+display = False
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
@@ -106,7 +106,7 @@ cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf_y, logi
 ce_loss = tf.reduce_mean(cross_entropy, name="tf_ce_loss")
 pg_loss = tf.reduce_mean(tf_reward * cross_entropy, name="tf_pg_loss")
 optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-tf_grads = optimizer.compute_gradients(pg_loss, var_list=tf.trainable_variables()) #, grad_loss=tf_epr)
+tf_grads = optimizer.compute_gradients(l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_reward)
 train_op = optimizer.apply_gradients(tf_grads)
 
 
@@ -180,7 +180,7 @@ while True:
     #     action = np.random.choice(n_actions, p=aprob)
     #else:
     action = np.random.choice(n_actions, p=aprob)
-
+    #action = np.argmax(aprob)
     observation, reward, smallreward, velocity, done, redo = game.runGame(action, False)
     label = action
 
