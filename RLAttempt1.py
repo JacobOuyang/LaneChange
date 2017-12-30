@@ -5,20 +5,22 @@ import tensorflow as tf
 import random
 import math
 import os
-MAX_MEMORY_SIZE = 350
+MAX_MEMORY_SIZE = 250
+import cv2
 # hyperparameters
-n_obs = 200 * 300  # dimensionality of observations
+n_obs = 50 * 100  # dimensionality of observations
 h = 200  # number of hidden layer neurons
 n_actions = 4  # number of available actions
 learning_rate = 1e-3
 gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp11/Attempt11'
+save_path = 'models_Attemp12/Attempt12'
 INITIAL_EPSILON = 1
+input_array_size = 3
 
 # gamespace
-display = True
+display = False
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
@@ -33,7 +35,7 @@ WillContinue = False
 tf_model = {}
 with tf.variable_scope('layer_one', reuse=False):
     xavier_l1 = tf.truncated_normal_initializer(mean=0, stddev=1. / np.sqrt(n_obs), dtype=tf.float32)
-    tf_model['W1'] = tf.get_variable("W1", [n_obs, h], initializer=xavier_l1)
+    tf_model['W1'] = tf.get_variable("W1", [n_obs * input_array_size, h], initializer=xavier_l1)
 with tf.variable_scope('layer_two', reuse=False):
     xavier_l2 = tf.truncated_normal_initializer(mean=0, stddev=1. / np.sqrt(h), dtype=tf.float32)
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
@@ -84,19 +86,41 @@ def tf_policy_forward(x):  # x ~ [1,D]
     return p
 
 
-# downsampling
-#def prepro(I):
- #   """ prepro 210x160x3 uint8 frame into 6400 (80x80) 1D float vector """
-  #  I = I[35:195]  # crop
-   # I = I[::2, ::2, 0]  # downsample by factor of 2
-    #I[I == 144] = 0  # erase background (background type 1)
-    #I[I == 109] = 0  # erase background (background type 2)
-    #I[I != 0] = 1  # everything else (paddles, ball) just set to 1
-    #return I.astype(np.float).ravel()
+def debug_x(diff_x, prev, curr):
+
+    __debug_diff__ = False
+    if __debug_diff__ == False:
+        return
+
+    cv2.namedWindow("diff images")
+
+    cv2.imshow('diff image', (diff_x - np.amin(diff_x))*100)
+    cv2.waitKey(100)
+
+
+    cv2.namedWindow("prev images")
+    if prev is not None:
+        cv2.imshow('prev image', prev)
+        cv2.waitKey(100)
+
+    cv2.namedWindow("curr images")
+    cv2.imshow('curr image', curr)
+    cv2.waitKey(100)
+
+    cv2.destroyWindow("diff images")
+    cv2.destroyWindow("curr images")
+    cv2.destroyWindow("prev images")
+
+
+#downsampling
+def prepro(I):
+    """ prepro 210x160x3 uint8 frame into 5000 (50x100) 1D float vector """
+    I = I[::4, ::3]  # downsample by factor of 2
+    return I.astype(np.float).ravel()
 
 
 # tf placeholders
-tf_x = tf.placeholder(dtype=tf.float32, shape=[None, n_obs], name="tf_x")
+tf_x = tf.placeholder(dtype=tf.float32, shape=[None, n_obs*input_array_size], name="tf_x")
 tf_y = tf.placeholder(dtype=tf.float32, shape=[None, n_actions], name="tf_y")
 tf_epr = tf.placeholder(dtype=tf.float32, shape=[None, 1], name="tf_epr")
 
@@ -160,39 +184,21 @@ train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 # training loop
 epsilon = INITIAL_EPSILON
+running_length = 0
+x = [np.zeros(n_obs)]*input_array_size
 while True:
 
-
-    WillContinue = False
     # preprocess the observation, set input to network to be difference image
-    cur_x = observation
-    x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
-    prev_x = cur_x
+    x.pop(0)
+    x.append(prepro(observation))
 
     # stochastically sample a policy from the network
     feed = {tf_x: np.reshape(x, (1, -1))}
     aprob = sess.run(tf_aprob, feed);
     aprob = aprob[0, :]
-    while WillContinue == False:
-        if random.random() > epsilon and epsilon > 0:
-            findaction = random.random()
-            for i in aprob:
-                findaction -= aprob[i]
-                if findaction <= 0:
-                    action = i
-                    break
-            #action = random.randint(0, 3)
-            epsilon -= episode_number / 100000
-            observation, reward, smallreward, done = game.runGame(action, True)
-            if observation == "REDO":
-                WillContinue = False
-            else:
-                WillContinue = True
-        else:
-            action = np.random.choice(n_actions, p=aprob)
-            observation, reward, smallreward, done = game.runGame(action, False)
-            WillContinue = True
 
+    action = np.random.choice(n_actions, p=aprob)
+    observation, reward, smallreward, done = game.runGame(action, False)
 
     label = np.zeros_like(aprob);
     label[action] = 1
@@ -211,8 +217,8 @@ while True:
       #  ys.pop(0)
        # rs.pop(0)
     #if np.shape(x) == (2):
-    x= np.reshape(x, [-1])
-    xs.append(x)
+    x_input= np.reshape(x, [-1])
+    xs.append(x_input)
     ys.append(label)
     ep_rs.append(reward)
     ep_rs2.append(smallreward)
@@ -221,7 +227,7 @@ while True:
         # update running reward
 
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-        running = len(ep_rs)
+        running_length = 0.1 * len(ep_rs) + 0.9 * running_length
         ep_rs2 = discount_smallrewards(ep_rs2)
         ep_rs = discount_rewards(ep_rs)
 
@@ -266,15 +272,15 @@ while True:
         # print progress console
         if episode_number % 5 == 0:
             print(
-            'ep {}: reward: {}, mean reward: {:3f}, running: {}'.format(episode_number, reward_sum, running_reward, running))
+            'ep {}: reward: {}, mean reward: {:3f}, episode running length: {}'.format(episode_number, reward_sum, running_reward, running_length))
         else:
             print(
             '\tep {}: reward: {}'.format(episode_number, reward_sum))
 
 
         episode_number += 1  # the Next Episode
-
-        reward_sum = 0
+        if episode_number %100 == 0:
+            reward_sum = 0
         if episode_number % 1000 == 0:
             saver.save(sess, save_path, global_step=episode_number)
             print(

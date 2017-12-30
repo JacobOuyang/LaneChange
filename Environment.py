@@ -71,7 +71,7 @@ class GameV1:
             cv2.waitKey(100)
 
         if self.checkColission():
-            print("crash")
+            print("crash. action = {}, lane = {}".format(action, self.playerlanes))
             return -1, 0
         elif updatingcar.GetPos() >=1000:
             print("win")
@@ -126,7 +126,7 @@ class GameV1:
                     if self.Game[self.playerlanes+1][j].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes+1].insert(j, playercar)
-                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel()
+                        return math.fabs(self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel()) * 0.5
 
         return 0
     def checkColission(self):
