@@ -5,17 +5,20 @@ import tensorflow as tf
 import random
 import math
 import os
-MAX_MEMORY_SIZE = 250
+MAX_MEMORY_SIZE = 450
 import cv2
 # hyperparameters
-n_obs = 50 * 100  # dimensionality of observations
+width = 100
+height = 50
+n_obs = height * width  # dimensionality of observations
 h = 200  # number of hidden layer neurons
 n_actions = 4  # number of available actions
 learning_rate = 1e-3
 gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp12/Attempt12'
+entropy_scale = 0.005
+save_path = 'models_Attemp17/Attempt17'
 INITIAL_EPSILON = 1
 input_array_size = 3
 
@@ -33,9 +36,13 @@ WillContinue = False
 
 # initialize model
 tf_model = {}
+with tf.variable_scope('conv_layer'):
+    conv1_filter = tf.Variable(tf.truncated_normal([3, 3, input_array_size, 1], stddev=0.1), trainable=True, name="conv1_filter")
+    conv1_bias = tf.Variable(tf.truncated_normal([1], stddev=0.1), trainable=True, name="conv1_bias")
+
 with tf.variable_scope('layer_one', reuse=False):
     xavier_l1 = tf.truncated_normal_initializer(mean=0, stddev=1. / np.sqrt(n_obs), dtype=tf.float32)
-    tf_model['W1'] = tf.get_variable("W1", [n_obs * input_array_size, h], initializer=xavier_l1)
+    tf_model['W1'] = tf.get_variable("W1", [n_obs, h], initializer=xavier_l1)
 with tf.variable_scope('layer_two', reuse=False):
     xavier_l2 = tf.truncated_normal_initializer(mean=0, stddev=1. / np.sqrt(h), dtype=tf.float32)
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
@@ -44,7 +51,8 @@ def discount_rewards(rewardarray):
     if rewardarray[0] > 0:
         rewardarray[0] = len(rewardarray)/330 * rewardarray[0] *2
     else:
-        rewardarray[0] = rewardarray[0]
+        #rewardarray[0] = rewardarray[0]
+        rewardarray[0] = rewardarray[0] * math.pow(3, (300 - len(rewardarray)) / 300)
     #     rewardarray[i] = rewardarray[i] * math.pow(6 - velocityarray[gamenumber], (300 - len(rewardarray) + i) / 300)
     # for i in range(len(rewardarray)):
     #     if rewardarray[i] != 0:
@@ -79,32 +87,37 @@ def tf_discount_rewards(tf_r):  # tf_r ~ [game_steps,1]
 
 
 def tf_policy_forward(x):  # x ~ [1,D]
-    h = tf.matmul(x, tf_model['W1'])
+    conv1_output = tf.nn.conv2d(x, conv1_filter, strides=[1, 1, 1, 1], padding='SAME')
+    conv1_output += conv1_bias
+    conv1_output = tf.nn.relu(conv1_output)
+    conv1_output = tf.contrib.layers.flatten(conv1_output)
+
+    h = tf.matmul(conv1_output, tf_model['W1'])
     h = tf.nn.relu(h)
-    logp = tf.matmul(h, tf_model['W2'])
-    p = tf.nn.softmax(logp)
-    return p
+    tf_logits = tf.matmul(h, tf_model['W2'])
+    p = tf.nn.softmax(tf_logits)
+    return p, tf_logits
 
 
-def debug_x(diff_x, prev, curr):
+def debug_x(x_array):
 
-    __debug_diff__ = False
+    __debug_diff__ = True
     if __debug_diff__ == False:
         return
 
     cv2.namedWindow("diff images")
 
-    cv2.imshow('diff image', (diff_x - np.amin(diff_x))*100)
+    cv2.imshow('diff image', (x_array[0]))
     cv2.waitKey(100)
 
 
     cv2.namedWindow("prev images")
-    if prev is not None:
-        cv2.imshow('prev image', prev)
-        cv2.waitKey(100)
+    #if prev is not None:
+    cv2.imshow('prev image', x_array[1])
+    cv2.waitKey(100)
 
     cv2.namedWindow("curr images")
-    cv2.imshow('curr image', curr)
+    cv2.imshow('curr image', x_array[2])
     cv2.waitKey(100)
 
     cv2.destroyWindow("diff images")
@@ -116,12 +129,12 @@ def debug_x(diff_x, prev, curr):
 def prepro(I):
     """ prepro 210x160x3 uint8 frame into 5000 (50x100) 1D float vector """
     I = I[::4, ::3]  # downsample by factor of 2
-    return I.astype(np.float).ravel()
+    return I.astype(np.float)
 
 
 # tf placeholders
-tf_x = tf.placeholder(dtype=tf.float32, shape=[None, n_obs*input_array_size], name="tf_x")
-tf_y = tf.placeholder(dtype=tf.float32, shape=[None, n_actions], name="tf_y")
+tf_x = tf.placeholder(dtype=tf.float32, shape=[None, height, width, input_array_size], name="tf_x")
+tf_y = tf.placeholder(dtype=tf.int32, shape=[None], name="tf_y")
 tf_epr = tf.placeholder(dtype=tf.float32, shape=[None, 1], name="tf_epr")
 
 # tf reward processing (need tf_discounted_epr for policy gradient wizardry)
@@ -132,10 +145,23 @@ tf_epr /= tf.sqrt(tf_variance + 1e-6)
 
 
 # tf optimizer op
-tf_aprob = tf_policy_forward(tf_x)
-l2_loss = tf.nn.l2_loss(tf_y - tf_aprob, name="tf_l2_loss")
+tf_aprob, tf_logits = tf_policy_forward(tf_x)
+tf_label = tf.one_hot(tf_y, n_actions)
+l2_loss = tf.nn.l2_loss(tf_label - tf_aprob, name="tf_l2_loss")
+
+
+cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf_y, logits = tf_logits)
+ce_loss = tf.reduce_mean(cross_entropy, name="tf_ce_loss")
+pg_loss = tf.reduce_mean(tf_epr * cross_entropy, name="tf_pg_loss")
+
+#entropy regularization
+action_log_prob = tf.nn.log_softmax(tf_logits)
+entropy_loss = entropy_scale * tf.reduce_sum(action_log_prob*tf.exp(action_log_prob))
+
+total_loss = pg_loss + entropy_loss
+
 optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-tf_grads = optimizer.compute_gradients(l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr)
+tf_grads = optimizer.compute_gradients(total_loss, var_list=tf.trainable_variables())#, grad_loss=tf_epr)
 train_op = optimizer.apply_gradients(tf_grads)
 
 
@@ -150,8 +176,10 @@ for g, v in tf_grads:
 grad_summaries_merged = tf.summary.merge(grad_summaries)
 
 l2_loss_summary = tf.summary.scalar("l2_loss", l2_loss)
-
-train_summary_op = tf.summary.merge([l2_loss_summary, grad_summaries_merged])
+ce_loss_summary = tf.summary.scalar("ce_loss", ce_loss)
+pg_loss_summary = tf.summary.scalar("pg_loss", pg_loss)
+total_loss_summary = tf.summary.scalar("total_loss", total_loss)
+train_summary_op = tf.summary.merge([l2_loss_summary, ce_loss_summary, pg_loss_summary, total_loss_summary, grad_summaries_merged])
 
 
 # tf graph initialization
@@ -183,49 +211,44 @@ train_summary_dir = os.path.join(save_dir, "summaries", "train")
 train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 # training loop
-epsilon = INITIAL_EPSILON
+# = INITIAL_EPSILON
 running_length = 0
-x = [np.zeros(n_obs)]*input_array_size
+x = [np.zeros([height, width])]*input_array_size
+epsilon = math.pow(0.5, episode_number/1000)
 while True:
 
     # preprocess the observation, set input to network to be difference image
     x.pop(0)
     x.append(prepro(observation))
-
+    #debug_x(x)
+    # move the channel dimension to the last from [3, 50, 100] into [50, 100, 3]
+    input_x = np.transpose(x, [1, 2, 0])
     # stochastically sample a policy from the network
-    feed = {tf_x: np.reshape(x, (1, -1))}
+    feed = {tf_x: np.expand_dims(input_x, 0)}
     aprob = sess.run(tf_aprob, feed);
     aprob = aprob[0, :]
 
-    action = np.random.choice(n_actions, p=aprob)
+    if random.random() < epsilon:
+        action = random.randint(n_actions)
+        #action = np.random.choice(n_actions, p=aprob)
+    else:
+        action = np.argmax(aprob)
+
     observation, reward, smallreward, done = game.runGame(action, False)
 
-    label = np.zeros_like(aprob);
-    label[action] = 1
+    label = action
 
     # step the environment and get new measurements
-
     reward_sum += reward
 
-    # record game history
-   # if len(rs) < MAX_MEMORY_SIZE:
-    #    xs.append(x)
-     #   ys.append(label)
-      #  rs.append(reward)
-    #else:
-     #   xs.pop(0)
-      #  ys.pop(0)
-       # rs.pop(0)
-    #if np.shape(x) == (2):
-    x_input= np.reshape(x, [-1])
-    xs.append(x_input)
+    xs.append(input_x)
     ys.append(label)
     ep_rs.append(reward)
     ep_rs2.append(smallreward)
 
     if done:
         # update running reward
-
+        epsilon = math.pow(0.5, episode_number / 1000)
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
         running_length = 0.1 * len(ep_rs) + 0.9 * running_length
         ep_rs2 = discount_smallrewards(ep_rs2)
@@ -259,9 +282,9 @@ while True:
 
 
 
-            x_t = np.vstack(xs)
+            x_t = np.stack(xs)
             r_t = np.vstack(rs)
-            y_t = np.vstack(ys)
+            y_t = np.stack(ys)
 
             # parameter update
             feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
