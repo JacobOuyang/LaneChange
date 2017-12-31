@@ -18,7 +18,7 @@ gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
 entropy_scale = 0.005
-save_path = 'models_Attemp17/Attempt17'
+save_path = 'models_Attemp18/Attempt18'
 INITIAL_EPSILON = 1
 input_array_size = 3
 
@@ -229,7 +229,7 @@ while True:
     aprob = aprob[0, :]
 
     if random.random() < epsilon:
-        action = random.randint(n_actions)
+        action = random.randint(0, 3)
         #action = np.random.choice(n_actions, p=aprob)
     else:
         action = np.argmax(aprob)
