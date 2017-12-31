@@ -15,7 +15,7 @@ learning_rate = 1e-3
 gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp19/Attempt19'
+save_path = 'models_Attemp22/Attempt22'
 INITIAL_EPSILON = 1
 input_array_size = 2
 
@@ -44,7 +44,7 @@ def discount_rewards(rewardarray):
     if rewardarray[0] > 0:
         rewardarray[0] = len(rewardarray)/330 * rewardarray[0] *2
     else:
-        rewardarray[0] = rewardarray[0]
+        rewardarray[0] = rewardarray[0] * math.pow(3, (300 - len(rewardarray)) / 300)
     #     rewardarray[i] = rewardarray[i] * math.pow(6 - velocityarray[gamenumber], (300 - len(rewardarray) + i) / 300)
     # for i in range(len(rewardarray)):
     #     if rewardarray[i] != 0:
@@ -65,7 +65,7 @@ def discount_smallrewards(rewardarray):
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i] * 6
+            rewardarray[i] = rewardarray[i] * 15
     rewardarray.reverse()
     return rewardarray
 

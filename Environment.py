@@ -10,7 +10,7 @@ class GameV1:
         #
         self.lanes = 5
         self.Game = []
-        self.maxUnits = 1000;
+        self.maxUnits = 500;
         self.playercarposition = 0;
         self.playerlanes = self.lanes-1
         self.imagearray = np.zeros(shape=(200,300))
@@ -25,7 +25,7 @@ class GameV1:
             self.Game.append([])
         for i in range(self.lanes):
             currentposition = 0;
-            while(currentposition<1000):
+            while(currentposition< self.maxUnits):
                 self.Game[i].append(Cars.Car(currentposition, 2+(1+0.3*(self.lanes-i-1))))
                 currentposition += random.randrange(6,20)
                 #currentposition += 10
@@ -52,7 +52,7 @@ class GameV1:
 
                     #if updatingcar.GetVel() ==0:
                     #    updatingcar.updateVeloc(tempvel)
-                    if updatingcar.GetPos() >= 1000:
+                    if updatingcar.GetPos() >= self.maxUnits:
                         self.Game[i].pop(j)
                         self.Game[i].insert(0, updatingcar)
                         updatingcar.position = 0;
@@ -73,7 +73,7 @@ class GameV1:
         if self.checkColission():
             print("crash. action = {}, lane = {}".format(action, self.playerlanes))
             return -1, 0
-        elif updatingcar.GetPos() >=1000:
+        elif updatingcar.GetPos() >= self.maxUnits:
             print("win")
             return 1, reward
         else:
@@ -126,19 +126,19 @@ class GameV1:
                     if self.Game[self.playerlanes+1][j].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes+1].insert(j, playercar)
-                        return math.fabs(self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel()) * 0.5
+                        return (self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel()) * 0.5
 
         return 0
     def checkColission(self):
         playercar = self.Game[self.playerlanes][self.playercarposition]
         if self.checkBack(playercar):
-            #print("1")
+            print("1")
             return True
         elif self.checkFront(playercar):
-            #print("2")
+            print("2")
             return True
         elif self.checkFast(playercar):
-            #print("3")
+            print("3")
             return True
         else:
             return False
