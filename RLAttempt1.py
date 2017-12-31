@@ -15,9 +15,9 @@ learning_rate = 1e-3
 gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp12/Attempt12'
+save_path = 'models_Attemp19/Attempt19'
 INITIAL_EPSILON = 1
-input_array_size = 3
+input_array_size = 2
 
 # gamespace
 display = False
@@ -81,9 +81,9 @@ def tf_discount_rewards(tf_r):  # tf_r ~ [game_steps,1]
 def tf_policy_forward(x):  # x ~ [1,D]
     h = tf.matmul(x, tf_model['W1'])
     h = tf.nn.relu(h)
-    logp = tf.matmul(h, tf_model['W2'])
-    p = tf.nn.softmax(logp)
-    return p
+    logits = tf.matmul(h, tf_model['W2'])
+    p = tf.nn.softmax(logits)
+    return p, logits
 
 
 def debug_x(diff_x, prev, curr):
@@ -121,7 +121,7 @@ def prepro(I):
 
 # tf placeholders
 tf_x = tf.placeholder(dtype=tf.float32, shape=[None, n_obs*input_array_size], name="tf_x")
-tf_y = tf.placeholder(dtype=tf.float32, shape=[None, n_actions], name="tf_y")
+tf_y = tf.placeholder(dtype=tf.int32, shape=[None], name="tf_y")
 tf_epr = tf.placeholder(dtype=tf.float32, shape=[None, 1], name="tf_epr")
 
 # tf reward processing (need tf_discounted_epr for policy gradient wizardry)
@@ -132,11 +132,16 @@ tf_epr /= tf.sqrt(tf_variance + 1e-6)
 
 
 # tf optimizer op
-tf_aprob = tf_policy_forward(tf_x)
-l2_loss = tf.nn.l2_loss(tf_y - tf_aprob, name="tf_l2_loss")
+tf_aprob, tf_logits = tf_policy_forward(tf_x)
+tf_one_hot = tf.one_hot(tf_y, n_actions)
+l2_loss = tf.nn.l2_loss(tf_one_hot - tf_aprob, name="tf_l2_loss")
+cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf_y, logits = tf_logits)
+ce_loss = tf.reduce_mean(cross_entropy, name="tf_ce_loss")
+pg_loss = tf.reduce_mean(tf_epr * cross_entropy, name="tf_pg_loss")
 optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-tf_grads = optimizer.compute_gradients(l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr)
+tf_grads = optimizer.compute_gradients(pg_loss, var_list=tf.trainable_variables()) #, grad_loss=tf_epr)
 train_op = optimizer.apply_gradients(tf_grads)
+
 
 
 # write out losses to tensorboard
@@ -150,8 +155,10 @@ for g, v in tf_grads:
 grad_summaries_merged = tf.summary.merge(grad_summaries)
 
 l2_loss_summary = tf.summary.scalar("l2_loss", l2_loss)
+ce_loss_summary = tf.summary.scalar("ce_loss", ce_loss)
+pg_loss_summary = tf.summary.scalar("pg_loss", pg_loss)
 
-train_summary_op = tf.summary.merge([l2_loss_summary, grad_summaries_merged])
+train_summary_op = tf.summary.merge([l2_loss_summary, ce_loss_summary, pg_loss_summary, grad_summaries_merged])
 
 
 # tf graph initialization
@@ -183,7 +190,7 @@ train_summary_dir = os.path.join(save_dir, "summaries", "train")
 train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 # training loop
-epsilon = INITIAL_EPSILON
+epsilon = math.pow(0.5, episode_number/1000)
 running_length = 0
 x = [np.zeros(n_obs)]*input_array_size
 while True:
@@ -193,31 +200,26 @@ while True:
     x.append(prepro(observation))
 
     # stochastically sample a policy from the network
-    feed = {tf_x: np.reshape(x, (1, -1))}
+    x_input = [x[1], np.subtract(x[1], x[0])]
+    feed = {tf_x: np.reshape(x_input, (1, -1))}
     aprob = sess.run(tf_aprob, feed);
     aprob = aprob[0, :]
-
-    action = np.random.choice(n_actions, p=aprob)
+    if random.random() < epsilon:
+        action = random.randint(0, n_actions-1)
+    else:
+        action = np.argmax(aprob)
+    #action = np.random.choice(n_actions, p=aprob)
     observation, reward, smallreward, done = game.runGame(action, False)
 
-    label = np.zeros_like(aprob);
-    label[action] = 1
+    label = action
+
 
     # step the environment and get new measurements
 
     reward_sum += reward
 
-    # record game history
-   # if len(rs) < MAX_MEMORY_SIZE:
-    #    xs.append(x)
-     #   ys.append(label)
-      #  rs.append(reward)
-    #else:
-     #   xs.pop(0)
-      #  ys.pop(0)
-       # rs.pop(0)
-    #if np.shape(x) == (2):
-    x_input= np.reshape(x, [-1])
+
+    x_input= np.reshape(x_input, [-1])
     xs.append(x_input)
     ys.append(label)
     ep_rs.append(reward)
@@ -225,7 +227,7 @@ while True:
 
     if done:
         # update running reward
-
+        epsilon = math.pow(0.5, episode_number / 1000)
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
         running_length = 0.1 * len(ep_rs) + 0.9 * running_length
         ep_rs2 = discount_smallrewards(ep_rs2)
@@ -261,7 +263,7 @@ while True:
 
             x_t = np.vstack(xs)
             r_t = np.vstack(rs)
-            y_t = np.vstack(ys)
+            y_t = np.stack(ys)
 
             # parameter update
             feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
