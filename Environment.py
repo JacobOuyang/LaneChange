@@ -3,7 +3,6 @@ import numpy as np
 import math
 import cv2
 import random
-import copy
 class GameV1:
     def __init__(self, render):
         #eachunit is 5.2 feet
@@ -18,7 +17,7 @@ class GameV1:
         self.gameplayerindexvert =0
         self.gameplayerindexhorz =0
         self.render = render
-        self.tempstore = None
+        self.temprestore = []
 
     def populateGameArray(self):
         self.Game=[]
@@ -28,11 +27,12 @@ class GameV1:
             currentposition = 0;
             while(currentposition<1000):
                 self.Game[i].append(Cars.Car(currentposition, 2+(1+0.3*(self.lanes-i-1))))
-                currentposition += random.randrange(6,20)
+                #currentposition += random.randrange(6,20)
+                currentposition += 10
         self.Game[self.lanes-1][0] = Cars.PlayerCar(0, self.Game[self.lanes-1][1].velocity)
 
-    def updateGameArray(self, action, test):
-        self.tempstore = copy.deepcopy(self.Game)
+    def updateGameArray(self, action):
+        self.tempstore = self.Game
         self.searchforPlayerCar()
         reward= self.updatePlayerCar(action)
 
@@ -41,15 +41,16 @@ class GameV1:
                 updatingcar = self.Game[i][j]
                 if (isinstance(updatingcar, Cars.PlayerCar) == False):
 
-                 #   randomint = random.random()
-                 #   if randomint <0.05:
-                 #       updatingcar.position += 0.2
-                 #   if randomint >0.99:
-                 #       tempvel = updatingcar.GetVel()
-                 #       updatingcar.updateVeloc(2)
+                    #randomint = random.random()
+
+                    #if randomint <0.05:
+                    #    updatingcar.position += 0.2
+                    #if randomint >0.99:
+                    #    tempvel = updatingcar.GetVel()
+                    #    updatingcar.updateVeloc(0)
                     updatingcar.updatePos()
-                 #   if updatingcar.GetVel() ==2:
-                 #       updatingcar.updateVeloc(tempvel)
+                    #if updatingcar.GetVel() ==0:
+                    #    updatingcar.updateVeloc(tempvel)
                     if updatingcar.GetPos() >= 1000:
                         self.Game[i].pop(j)
                         self.Game[i].insert(0, updatingcar)
@@ -60,7 +61,7 @@ class GameV1:
         if action ==2 or action ==3:
             if self.playercarposition != len(self.Game[self.playerlanes]) -1:
                 updatingcar.velocity = self.Game[self.playerlanes][self.playercarposition+1].GetVel()
-        print("lane={}, pos={:.2f}".format(self.playerlanes,updatingcar.GetPos()))
+        print(updatingcar.GetVel())
 
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
         if self.render:
@@ -69,16 +70,13 @@ class GameV1:
             cv2.waitKey(100)
 
         if self.checkColission():
-            if test:
-                print("(crash)")
-            else:
-                print("crash")
-            return -1, 0, updatingcar.GetVel()
+            print("crash")
+            return -1, 0
         elif updatingcar.GetPos() >=1000:
             print("win")
-            return 1, reward, updatingcar.GetVel()
+            return 1, reward
         else:
-            return 0, reward, updatingcar.GetVel()
+            return 0, reward
 
 
 
@@ -219,19 +217,18 @@ class GameV1:
          #   temp = [0,0]
         #else:
 
-        temp = self.updateGameArray(action, greedy)
-        if temp[0] == -1 and greedy == True:
-            self.Game = self.tempstore
-            return self.imagearray, 0, 0, 0, True, "REDO"
-
+        temp = self.updateGameArray(action)
+        if greedy == True and temp[0] != 0:
+            self.Game=self.temprestore
+            return "REDO", 0, 0, 0
         if temp[0] == 0:
-            return self.imagearray, temp[0], temp[1], temp[2], False, ""
+            return self.imagearray, temp[0], temp[1], False
             #self.i = 1
         else:
             #self.i=0
             self.populateGameArray()
 
-            return self.imagearray, temp[0], 0, temp[2], True, ""
+            return self.imagearray, temp[0], 0, True
 
 
 
@@ -242,7 +239,7 @@ def main():
     gameover = False
     cv2.namedWindow("game images")
     while True:
-        game.runGame(1, True)
+        game.runGame(0)
    # while gameover == False:
     #    temp = game.updateGameArray(0)
      #   if temp != None:

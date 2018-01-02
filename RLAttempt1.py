@@ -4,20 +4,21 @@ import Environment
 import tensorflow as tf
 import random
 import math
+import os
 MAX_MEMORY_SIZE = 350
 # hyperparameters
 n_obs = 200 * 300  # dimensionality of observations
 h = 200  # number of hidden layer neurons
 n_actions = 4  # number of available actions
 learning_rate = 1e-3
-gamma = .8  # discount factor for reward
+gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models/Attempt1'
+save_path = 'models_Attemp8/Attempt8'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = False
+display = True
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
@@ -38,29 +39,25 @@ with tf.variable_scope('layer_two', reuse=False):
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
 def discount_rewards(rewardarray):
     rewardarray.reverse()
-    for i in range(len(rewardarray)):
-        if rewardarray[i] != 0:
-            if rewardarray[i] > 0:
-                rewardarray[i] = (len(rewardarray)-i)/300 * rewardarray[0]
-            else:
-                rewardarray[i] = rewardarray[i] * math.pow(2, (300-len(rewardarray)+i)/300)
+    if rewardarray[0] > 0:
+        rewardarray[0] = len(rewardarray)/330 * rewardarray[0] *2
+    else:
+        rewardarray[0] = rewardarray[0]
 
+    for i in range(len(rewardarray) -1):
 
-    for i in range(len(rewardarray)-1):
-        if rewardarray[i+1] == 0:
-            rewardarray[i+1] = rewardarray[i] * gamma
+        rewardarray[i+1] = rewardarray[i] * gamma
     rewardarray.reverse()
     return rewardarray
-"""
 def discount_smallrewards(rewardarray):
     rewardarray.reverse()
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i]
+            rewardarray[i] = rewardarray[i] * 6
     rewardarray.reverse()
     return rewardarray
-"""
+
 
 # tf operations
 def tf_discount_rewards(tf_r):  # tf_r ~ [game_steps,1]
@@ -101,18 +98,34 @@ tf_epr -= tf_mean
 tf_epr /= tf.sqrt(tf_variance + 1e-6)
 
 
-
-
 # tf optimizer op
 tf_aprob = tf_policy_forward(tf_x)
-loss = tf.nn.l2_loss(tf_y - tf_aprob)
+l2_loss = tf.nn.l2_loss(tf_y - tf_aprob, name="tf_l2_loss")
 optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-tf_grads = optimizer.compute_gradients(loss, var_list=tf.trainable_variables(), grad_loss=tf_epr)
+tf_grads = optimizer.compute_gradients(l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr)
 train_op = optimizer.apply_gradients(tf_grads)
+
+
+# write out losses to tensorboard
+grad_summaries = []
+for g, v in tf_grads:
+    if g is not None:
+        grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
+        sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
+        grad_summaries.append(grad_hist_summary)
+        grad_summaries.append(sparsity_summary)
+grad_summaries_merged = tf.summary.merge(grad_summaries)
+
+l2_loss_summary = tf.summary.scalar("l2_loss", l2_loss)
+
+train_summary_op = tf.summary.merge([l2_loss_summary, grad_summaries_merged])
+
 
 # tf graph initialization
 sess = tf.InteractiveSession()
 tf.global_variables_initializer().run()
+
+
 
 # try load saved model
 saver = tf.train.Saver(tf.global_variables())
@@ -131,6 +144,10 @@ else:
     "loaded model: {}".format(load_path))
     saver = tf.train.Saver(tf.global_variables())
     episode_number = int(load_path.split('-')[-1])
+
+
+train_summary_dir = os.path.join(save_dir, "summaries", "train")
+train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 # training loop
 epsilon = INITIAL_EPSILON
@@ -156,7 +173,7 @@ while True:
                     action = i
                     break
             #action = random.randint(0, 3)
-            epsilon = math.pow(episode_number, -1/100)
+            epsilon -= episode_number / 100000
             observation, reward, smallreward, done = game.runGame(action, True)
             if observation == "REDO":
                 WillContinue = False
@@ -199,7 +216,7 @@ while True:
         if episode_number % 2:
         #if True:
 
-           # rs2 = discount_smallrewards(rs2)
+            rs2 = discount_smallrewards(rs2)
             rs = discount_rewards(rs)
 
             for i in range(len(rs)):
@@ -227,10 +244,10 @@ while True:
 
             # parameter update
             feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
-            _ = sess.run(train_op, feed)
+            _, train_summaries = sess.run([train_op, train_summary_op], feed)
             # bookkeeping
             xs, rs, rs2, ys = [], [], [], []  # reset game history
-
+            train_summary_writer.add_summary(train_summaries, episode_number)
         # print progress console
         if episode_number % 5 == 0:
             print(
