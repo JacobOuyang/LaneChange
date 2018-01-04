@@ -27,8 +27,8 @@ class GameV1:
             currentposition = 0;
             while(currentposition<1000):
                 self.Game[i].append(Cars.Car(currentposition, 2+(1+0.3*(self.lanes-i-1))))
-                #currentposition += random.randrange(6,20)
-                currentposition += 10
+                currentposition += random.randrange(8,20)
+                #currentposition += 10
         self.Game[self.lanes-1][0] = Cars.PlayerCar(0, self.Game[self.lanes-1][1].velocity)
 
     def updateGameArray(self, action):
