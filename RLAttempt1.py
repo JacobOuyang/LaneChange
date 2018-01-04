@@ -10,12 +10,12 @@ import cv2
 # hyperparameters
 n_obs = 50 * 100  # dimensionality of observations
 h = 200  # number of hidden layer neurons
-n_actions = 4  # number of available actions
+n_actions = 3  # number of available actions
 learning_rate = 1e-3
-gamma = .6  # discount factor for reward
+gamma = 0.99  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp22/Attempt22'
+save_path = 'models_Attemp26/Attempt26'
 INITIAL_EPSILON = 1
 input_array_size = 2
 
@@ -42,9 +42,12 @@ with tf.variable_scope('layer_two', reuse=False):
 def discount_rewards(rewardarray):
     rewardarray.reverse()
     if rewardarray[0] > 0:
-        rewardarray[0] = len(rewardarray)/330 * rewardarray[0] *2
-    else:
-        rewardarray[0] = rewardarray[0] * math.pow(3, (300 - len(rewardarray)) / 300)
+        if len(rewardarray) >166:
+            rewardarray[0] = 0
+        else:
+            rewardarray[0] = (200-len(rewardarray))/50 * rewardarray[0] *2
+    #else:
+        #rewardarray[0] = rewardarray[0] * math.pow(1.1, (200 - len(rewardarray)) / 200)
     #     rewardarray[i] = rewardarray[i] * math.pow(6 - velocityarray[gamenumber], (300 - len(rewardarray) + i) / 300)
     # for i in range(len(rewardarray)):
     #     if rewardarray[i] != 0:
@@ -61,12 +64,10 @@ def discount_rewards(rewardarray):
     rewardarray.reverse()
     return rewardarray
 def discount_smallrewards(rewardarray):
-    rewardarray.reverse()
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
             rewardarray[i] = rewardarray[i] * 15
-    rewardarray.reverse()
     return rewardarray
 
 
@@ -190,7 +191,7 @@ train_summary_dir = os.path.join(save_dir, "summaries", "train")
 train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 # training loop
-epsilon = math.pow(0.5, episode_number/1000)
+#epsilon = math.pow(0.5, episode_number/1000)
 running_length = 0
 x = [np.zeros(n_obs)]*input_array_size
 while True:
@@ -204,11 +205,11 @@ while True:
     feed = {tf_x: np.reshape(x_input, (1, -1))}
     aprob = sess.run(tf_aprob, feed);
     aprob = aprob[0, :]
-    if random.random() < epsilon:
-        action = random.randint(0, n_actions-1)
-    else:
-        action = np.argmax(aprob)
-    #action = np.random.choice(n_actions, p=aprob)
+ #   if random.random() < epsilon:
+ #       action = random.randint(0, n_actions-1)
+ #   else:
+ #   action = np.argmax(aprob)
+    action = np.random.choice(n_actions, p=aprob)
     observation, reward, smallreward, done = game.runGame(action, False)
 
     label = action
