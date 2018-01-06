@@ -10,7 +10,7 @@ class GameV1:
         #
         self.lanes = 5
         self.Game = []
-        self.maxUnits = 1000;
+        self.maxUnits = 500;
         self.playercarposition = 0;
         self.playerlanes = self.lanes-1
         self.imagearray = np.zeros(shape=(200,300))
@@ -21,11 +21,13 @@ class GameV1:
 
     def populateGameArray(self):
         self.Game=[]
+        import time
+        random.seed(int(time.time()))
         for i in range(self.lanes):
             self.Game.append([])
         for i in range(self.lanes):
             currentposition = 0;
-            while(currentposition<1000):
+            while(currentposition<self.maxUnits):
                 self.Game[i].append(Cars.Car(currentposition, 2+(1+0.3*(self.lanes-i-1))))
                 currentposition += random.randrange(8,20)
                 #currentposition += 10
@@ -51,7 +53,7 @@ class GameV1:
                     updatingcar.updatePos()
                     #if updatingcar.GetVel() ==0:
                     #    updatingcar.updateVeloc(tempvel)
-                    if updatingcar.GetPos() >= 1000:
+                    if updatingcar.GetPos() >= self.maxUnits:
                         self.Game[i].pop(j)
                         self.Game[i].insert(0, updatingcar)
                         updatingcar.position = 0;
@@ -61,7 +63,7 @@ class GameV1:
         if action ==2 or action ==3:
             if self.playercarposition != len(self.Game[self.playerlanes]) -1:
                 updatingcar.velocity = self.Game[self.playerlanes][self.playercarposition+1].GetVel()
-        print(updatingcar.GetVel())
+        print('lanes: {}, action: {}, velocity: {}'.format(self.playerlanes, action, updatingcar.GetVel()))
 
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
         if self.render:
@@ -72,7 +74,7 @@ class GameV1:
         if self.checkColission():
             print("crash")
             return -1, 0
-        elif updatingcar.GetPos() >=1000:
+        elif updatingcar.GetPos() >=self.maxUnits:
             print("win")
             return 1, reward
         else:
@@ -86,6 +88,7 @@ class GameV1:
                 if isinstance(self.Game[i][j], Cars.PlayerCar):
                     self.playerlanes = i
                     self.playercarposition =j
+                    break
 
 
     def updatePlayerCar(self, action):
@@ -106,9 +109,10 @@ class GameV1:
                 return 0
         elif action == 1:
             self.searchforPlayerCar()
-            playercar.updateVeloc(playercar.GetVel() + 0.3)
+            playercar.updateVeloc(playercar.GetVel() + 0.1)
             return 0
         elif action == 2:
+        #elif action ==1:
 
             if self.playerlanes != 0:
 
@@ -116,8 +120,9 @@ class GameV1:
                     if self.Game[self.playerlanes-1][i].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes-1].insert(i, playercar)
-                        return self.Game[self.playerlanes-1][i+1].GetVel() - 3
+                        return self.Game[self.playerlanes-1][i+1].GetVel() - playercar.GetVel()
         elif action == 3:
+        #elif action ==2:
 
             if self.playerlanes != self.lanes-1:
 
@@ -125,7 +130,7 @@ class GameV1:
                     if self.Game[self.playerlanes+1][j].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes+1].insert(j, playercar)
-                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetPos()
+                        return self.Game[self.playerlanes+1][j+1].GetVel() - playercar.GetVel()
 
         return 0
     def checkColission(self):
@@ -191,6 +196,7 @@ class GameV1:
 
     def createImage(self, subGamearray, playervert, playerhorz):
         self.imagearray = np.zeros(shape=(200,300))
+        self.imagearray.fill(0.1)
         for i in range(len(subGamearray)):
             for j in range(len(subGamearray[i])):
                 if i == playervert:

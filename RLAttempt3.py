@@ -14,11 +14,11 @@ learning_rate = 1e-3
 gamma = .6  # discount factor for reward
 gamma2 = 0.5
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp12/Attempt12'
+save_path = 'models_Attemp19/Attempt19'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = False
+display = True
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
@@ -70,7 +70,7 @@ def discount_smallrewards(rewardarray):
 
     for i in range(len(rewardarray) -1):
         if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i] * 6
+            rewardarray[i] = rewardarray[i] * 15
     rewardarray.reverse()
     return rewardarray
 
@@ -167,6 +167,7 @@ train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
 # training loop
 epsilon = math.pow(0.5, episode_number/1000)
+
 while True:
 
 
@@ -187,6 +188,7 @@ while True:
         action = np.random.choice(n_actions, p=aprob)
         #action = np.random.choice(n_actions, p=aprob)
     observation, reward, smallreward, done = game.runGame(action, False)
+
 
 
 
@@ -218,6 +220,7 @@ while True:
         epsilon = math.pow(0.5, episode_number / 1000)
         running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
         running = len(rs)
+
         if episode_number % 2:
         #if True:
 
@@ -252,6 +255,7 @@ while True:
             _, train_summaries = sess.run([train_op, train_summary_op], feed)
             # bookkeeping
             xs, rs, rs2, ys = [], [], [], []  # reset game history
+
             train_summary_writer.add_summary(train_summaries, episode_number)
         # print progress console
         if episode_number % 5 == 0:
