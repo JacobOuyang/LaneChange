@@ -16,7 +16,7 @@ learning_rate = 1e-4
 gamma = .90  # discount factor for reward
 
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp21/Attempt21'
+save_path = 'models_Attemp25/Attempt25'
 INITIAL_EPSILON = 1
 
 # gamespace
@@ -79,27 +79,20 @@ def discount_smallrewards(rewardarray):
     return rewardarray
 
 
-# tf operations
-def tf_discount_rewards(tf_r):  # tf_r ~ [game_steps,1]
-    discount_f = lambda a, v: a * gamma + v;
-    tf_r_reverse = tf.scan(discount_f, tf.reverse(tf_r, [True, False]))
-    tf_discounted_r = tf.reverse(tf_r_reverse, [True, False])
-    return tf_discounted_r
-
-
 def tf_policy_forward(x):  # x ~ [1,D]
-    h = tf.matmul(x, tf_model['W1']) + tf_model['b1']
+    h = tf.matmul(x, tf_model['W1']) + tf_model["b1"]
     h = tf.nn.relu(h)
-    logp = tf.matmul(h, tf_model['W2']) + tf_model['b2']
-    p = tf.nn.softmax(logp)
-    return p
+    logits = tf.matmul(h, tf_model['W2']) + tf_model["b2"]
+    p = tf.nn.softmax(logits)
+    return p, logits
+
 
 def displayImage(image):
     __debug_diff__ = False
     if __debug_diff__:
         cv2.namedWindow("debug image")
         cv2.imshow('debug image', image)
-        cv2.waitKey(100)
+        cv2.waitKey(2000)
         cv2.destroyWindow("debug image")
 
 
@@ -117,7 +110,7 @@ def diff(X0, X1):
 
 # tf placeholders
 tf_x = tf.placeholder(dtype=tf.float32, shape=[None, n_obs], name="tf_x")
-tf_y = tf.placeholder(dtype=tf.float32, shape=[None, n_actions], name="tf_y")
+tf_y = tf.placeholder(dtype=tf.int32, shape=[None], name="tf_y")
 tf_epr = tf.placeholder(dtype=tf.float32, shape=[None, 1], name="tf_epr")
 
 # tf reward processing (need tf_discounted_epr for policy gradient wizardry)
@@ -128,10 +121,14 @@ tf_epr_normed /= tf.sqrt(tf_variance + 1e-6)
 
 
 # tf optimizer op
-tf_aprob = tf_policy_forward(tf_x)
-l2_loss = tf.nn.l2_loss(tf_y - tf_aprob, name="tf_l2_loss")
+tf_aprob, tf_logits = tf_policy_forward(tf_x)
+tf_one_hot = tf.one_hot(tf_y, n_actions)
+cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf_y, logits = tf_logits)
+l2_loss = tf.nn.l2_loss(tf_one_hot - tf_aprob, name="tf_l2_loss")
+ce_loss = tf.reduce_mean(cross_entropy, name="tf_ce_loss")
+pg_loss = tf.reduce_mean(tf_epr_normed * cross_entropy, name="tf_pg_loss")
 optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-tf_grads = optimizer.compute_gradients(l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr)
+tf_grads = optimizer.compute_gradients(ce_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr_normed)
 train_op = optimizer.apply_gradients(tf_grads)
 
 
@@ -146,9 +143,10 @@ for g, v in tf_grads:
 grad_summaries_merged = tf.summary.merge(grad_summaries)
 
 l2_loss_summary = tf.summary.scalar("l2_loss", l2_loss)
+ce_loss_summary = tf.summary.scalar("ce_loss", ce_loss)
+pg_loss_summary = tf.summary.scalar("pg_loss", pg_loss)
 
-train_summary_op = tf.summary.merge([l2_loss_summary, grad_summaries_merged])
-
+train_summary_op = tf.summary.merge([l2_loss_summary, ce_loss_summary, pg_loss_summary, grad_summaries_merged])
 
 # tf graph initialization
 sess = tf.InteractiveSession()
@@ -190,7 +188,6 @@ while True:
     # preprocess the observation, set input to network to be difference image
     cur_x = prepro(observation)
     x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
-
     prev_x = cur_x
     #x = observation
 
@@ -215,9 +212,10 @@ while True:
 
 
 
-        label = np.zeros_like(aprob);
-        label[action] = 1
 
+        #label = np.zeros_like(aprob);
+        #label[action] = 1
+        label = action
         # step the environment and get new measurements
 
         reward_sum += reward
@@ -277,13 +275,17 @@ while True:
 
                 x_t = np.vstack(xs)
                 r_t = np.vstack(rs)
-                y_t = np.vstack(ys)
+                y_t = np.stack(ys)
 
                 # parameter update
                 feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
+
+                epr_val, mean_val, variance_val, l2_loss_val, ce_loss_val, ce_val = \
+                    sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss, ce_loss, cross_entropy],
+                                                                    feed)
                 _, train_summaries = sess.run([train_op, train_summary_op], feed)
 
-                epr_val, mean_val, variance_val, l2_loss_val = sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss], feed)
+
                 # bookkeeping
                 xs, rs, rs2, ys = [], [], [], []  # reset game history
 

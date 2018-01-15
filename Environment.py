@@ -18,6 +18,7 @@ class GameV1:
         self.gameplayerindexhorz =0
         self.render = render
         self.temprestore = []
+        self.colorImage = None
 
     def populateGameArray(self):
         self.Game=[]
@@ -66,10 +67,8 @@ class GameV1:
         print('lanes: {}, action: {}, velocity: {}'.format(self.playerlanes, action, updatingcar.GetVel()))
 
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
-        if self.render:
 
-            cv2.imshow('game image', self.imagearray)
-            cv2.waitKey(100)
+        self.render_image()
 
         if self.checkColission():
             print("crash")
@@ -80,7 +79,28 @@ class GameV1:
         else:
             return 0, reward
 
+    def convert_color_image(self):
+        w, h = np.shape(self.imagearray)
+        if self.colorImage is None:
+            self.colorImage = np.empty((w, h, 3), dtype=np.uint8)
+        for i in range(w):
+            for j in range(h):
+                if self.imagearray[i, j] == 1:
+                    self.colorImage[i, j, :] = np.array([10, 200, 200])
+                elif self.imagearray[i, j] == 0.5:
+                    self.colorImage[i, j, :] = np.array([50, 50, 170])
+                else:
+                    self.colorImage[i, j, :] = np.array([50, 50, 50])
 
+
+    def render_image(self):
+
+        if self.render:
+            self.convert_color_image()
+            #colorImage = cv2.cvtColor(np.float32(self.imagearray), cv2.COLOR_GRAY2BGR)
+            #colorImage = create_color_image()
+            cv2.imshow('game image', self.colorImage) #self.imagearray)
+            cv2.waitKey(100)
 
     def searchforPlayerCar(self):
         for i in range(len(self.Game)):
