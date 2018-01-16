@@ -111,7 +111,7 @@ def diff(X0, X1):
 # tf placeholders
 tf_x = tf.placeholder(dtype=tf.float32, shape=[None, n_obs], name="tf_x")
 tf_y = tf.placeholder(dtype=tf.int32, shape=[None], name="tf_y")
-tf_epr = tf.placeholder(dtype=tf.float32, shape=[None, 1], name="tf_epr")
+tf_epr = tf.placeholder(dtype=tf.float32, shape=[None], name="tf_epr")
 
 # tf reward processing (need tf_discounted_epr for policy gradient wizardry)
 #tf_discounted_epr = tf_discount_rewards(tf_epr)
@@ -126,9 +126,10 @@ tf_one_hot = tf.one_hot(tf_y, n_actions)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=tf_y, logits = tf_logits)
 l2_loss = tf.nn.l2_loss(tf_one_hot - tf_aprob, name="tf_l2_loss")
 ce_loss = tf.reduce_mean(cross_entropy, name="tf_ce_loss")
-pg_loss = tf.reduce_mean(tf_epr_normed * cross_entropy, name="tf_pg_loss")
+pg_loss = tf.reduce_sum(tf_epr_normed * cross_entropy, name="tf_pg_loss")
 optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-tf_grads = optimizer.compute_gradients(ce_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr_normed)
+tf_grads = optimizer.compute_gradients(pg_loss, var_list=tf.trainable_variables()) #, grad_loss=tf_epr_normed)
+
 train_op = optimizer.apply_gradients(tf_grads)
 
 
@@ -274,15 +275,15 @@ while True:
 
 
                 x_t = np.vstack(xs)
-                r_t = np.vstack(rs)
+                r_t = np.stack(rs)
                 y_t = np.stack(ys)
 
                 # parameter update
                 feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
 
-                epr_val, mean_val, variance_val, l2_loss_val, ce_loss_val, ce_val = \
-                    sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss, ce_loss, cross_entropy],
-                                                                    feed)
+                #epr_val, mean_val, variance_val, l2_loss_val, ce_loss_val, ce_val = \
+                #    sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss, ce_loss, cross_entropy],
+                #                                                    feed)
                 _, train_summaries = sess.run([train_op, train_summary_op], feed)
 
 
