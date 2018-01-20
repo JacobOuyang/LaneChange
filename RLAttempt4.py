@@ -72,7 +72,7 @@ class RL_Model():
         self.ce_loss = tf.reduce_mean(self.cross_entropy, name="tf_ce_loss")
         self.pg_loss = tf.reduce_sum(tf_epr_normed * self.cross_entropy, name="tf_pg_loss")
         optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-        tf_grads = optimizer.compute_gradients(self.pg_loss, var_list=tf.trainable_variables())  # , grad_loss=tf_epr_normed)
+        tf_grads = optimizer.compute_gradients(self.l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr_normed)
 
         self.train_op = optimizer.apply_gradients(tf_grads)
 
