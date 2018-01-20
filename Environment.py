@@ -3,6 +3,7 @@ import numpy as np
 import math
 import cv2
 import random
+
 class GameV1:
     def __init__(self, render):
         #eachunit is 5.2 feet
@@ -18,9 +19,11 @@ class GameV1:
         self.gameplayerindexhorz =0
         self.render = render
         self.temprestore = []
+        self.timer = 0
 
     def populateGameArray(self):
         self.Game=[]
+        self.timer =0
         import time
         random.seed(int(time.time()))
         for i in range(self.lanes):
@@ -28,12 +31,13 @@ class GameV1:
         for i in range(self.lanes):
             currentposition = 0;
             while(currentposition<self.maxUnits):
-                self.Game[i].append(Cars.Car(currentposition, 2+(1+0.3*(self.lanes-i-1))))
+                self.Game[i].append(Cars.Car(currentposition, np.random.normal(2+(1+0.3*(self.lanes-i-1)), 0.3)))
                 currentposition += random.randrange(8,20)
                 #currentposition += 10
         self.Game[self.lanes-1][0] = Cars.PlayerCar(0, self.Game[self.lanes-1][1].velocity)
 
     def updateGameArray(self, action):
+        self.timer +=1
         self.tempstore = self.Game
         self.searchforPlayerCar()
         reward= self.updatePlayerCar(action)
@@ -42,17 +46,15 @@ class GameV1:
             for j in range(len(self.Game[i])):
                 updatingcar = self.Game[i][j]
                 if (isinstance(updatingcar, Cars.PlayerCar) == False):
-
-                    #randomint = random.random()
-
-                    #if randomint <0.05:
-                    #    updatingcar.position += 0.2
-                    #if randomint >0.99:
-                    #    tempvel = updatingcar.GetVel()
-                    #    updatingcar.updateVeloc(0)
+                    if j+1 <= len(self.Game[i]) -1:
+                        if updatingcar.GetPos() - self.Game[i][j+1].GetPos() <= 0.3:
+                            updatingcar.updateVeloc(self.Game[i][j+1].GetVel())
+                    if j-1 != 0:
+                        if updatingcar.GetVel() < self.Game[i][j-1].GetVel():
+                            if self.timer%10 == 0:
+                                updatingcar.updateVeloc(np.random.normal(2+(1+0.3*(self.lanes-i-1)), 0.15))
                     updatingcar.updatePos()
-                    #if updatingcar.GetVel() ==0:
-                    #    updatingcar.updateVeloc(tempvel)
+
                     if updatingcar.GetPos() >= self.maxUnits:
                         self.Game[i].pop(j)
                         self.Game[i].insert(0, updatingcar)
@@ -60,9 +62,9 @@ class GameV1:
         self.searchforPlayerCar()
         updatingcar = self.Game[self.playerlanes][self.playercarposition]
         updatingcar.updatePos()
-        if action ==2 or action ==3:
-            if self.playercarposition != len(self.Game[self.playerlanes]) -1:
-                updatingcar.velocity = self.Game[self.playerlanes][self.playercarposition+1].GetVel()
+        #if action ==2 or action ==3:
+        #    if self.playercarposition != len(self.Game[self.playerlanes]) -1:
+        #        updatingcar.velocity = self.Game[self.playerlanes][self.playercarposition+1].GetVel()
         print('lanes: {}, action: {}, velocity: {}'.format(self.playerlanes, action, updatingcar.GetVel()))
 
         self.createImage(self.createImageList(), self.gameplayerindexvert, self.gameplayerindexhorz)
@@ -245,7 +247,7 @@ def main():
     gameover = False
     cv2.namedWindow("game images")
     while True:
-        game.runGame(0)
+        game.runGame(0, False)
    # while gameover == False:
     #    temp = game.updateGameArray(0)
      #   if temp != None:
