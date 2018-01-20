@@ -16,12 +16,12 @@ learning_rate = 1e-4
 gamma = .90  # discount factor for reward
 
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp30/Attempt30'
+save_path = 'models_Attemp25/Attempt25'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = False
-training = True
+display = True
+training = False
 
 game=Environment.GameV1(display)
 game.populateGameArray()
@@ -59,7 +59,7 @@ class RL_Model():
     def train_graph(self, tf_aprob, tf_logits):
 
         self.tf_y = tf.placeholder(dtype=tf.int32, shape=[None], name="tf_y")
-        self.tf_epr = tf.placeholder(dtype=tf.float32, shape=[None, 1], name="tf_epr")
+        self.tf_epr = tf.placeholder(dtype=tf.float32, shape=[None], name="tf_epr")
 
         # tf reward processing (need tf_discounted_epr for policy gradient wizardry)
         # tf_discounted_epr = tf_discount_rewards(tf_epr)
@@ -72,8 +72,7 @@ class RL_Model():
         self.ce_loss = tf.reduce_mean(self.cross_entropy, name="tf_ce_loss")
         self.pg_loss = tf.reduce_sum(tf_epr_normed * self.cross_entropy, name="tf_pg_loss")
         optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-
-        tf_grads = optimizer.compute_gradients(self.l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr_normed)
+        tf_grads = optimizer.compute_gradients(self.pg_loss, var_list=tf.trainable_variables())  # , grad_loss=tf_epr_normed)
 
         self.train_op = optimizer.apply_gradients(tf_grads)
 
@@ -93,7 +92,7 @@ class RL_Model():
 
         self.train_summary_op = tf.summary.merge([l2_loss_summary, ce_loss_summary, pg_loss_summary, grad_summaries_merged])
 
-        return self.tf_y, self.tf_epr, self.train_op, self.train_summary_op, tf_one_hot, self.l2_loss
+        return self.tf_y, self.tf_epr, self.train_op, self.train_summary_op
 
 def discount_rewards(rewardarray):
 
@@ -149,21 +148,11 @@ def prepro(I):
     return I.astype(np.float)
 
 def diff(X0, X1):
-    #X0[X0==0.5] = 0 # erase the player car in the first image
-    X0[X0==0.1] = 0 # erase the background
-    X1[X1==0.1] = 0 # erase the background
+    X0[X0==0.5] = 0 # erase the player car in the first image
+    diff_image = X1 - X0
 
-    diff_image = X1 - 0.75*X0
-    if display:
-        displayImage(diff_image)
+    displayImage(diff_image)
     return diff_image
-
-def count_win_percentage(win_loss):
-    count = 0
-    for win in win_loss:
-        if win == 1:
-            count +=1
-    return 100 * count / len(win_loss)
 
 
 def restore_model(sess):
@@ -180,7 +169,6 @@ def restore_model(sess):
     except:
         print(
             "no saved model to load. starting new session")
-        tf.global_variables_initializer().run()
         load_was_success = False
     else:
         print(
@@ -197,7 +185,7 @@ def train(sess, rl_model):
     tf_x, tf_aprob, tf_logits = rl_model.forward_graph()
 
     # create train graph
-    tf_y, tf_epr, train_op, train_summary_op, tf_one_hot, l2_loss = rl_model.train_graph(tf_aprob=tf_aprob, tf_logits=tf_logits)
+    tf_y, tf_epr, train_op, train_summary_op = rl_model.train_graph(tf_aprob=tf_aprob, tf_logits=tf_logits)
 
     # restore the model with previously saved weights
     saver, episode_number, save_dir = restore_model(sess)
@@ -205,7 +193,7 @@ def train(sess, rl_model):
     train_summary_dir = os.path.join(save_dir, "summaries", "train")
     train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
-    #epsilon = 1
+
     epsilon = math.pow(0.5, episode_number/1000)
 
     wait_time = 1
@@ -215,13 +203,13 @@ def train(sess, rl_model):
     running_reward = None
     reward_sum = 0
     observation = np.zeros(shape=(200, 300))
-    win_loss = []
+
     # training loop
     while True:
 
         # preprocess the observation, set input to network to be difference image
         cur_x = prepro(observation)
-        x = diff(prev_x, cur_x) if prev_x is not None else np.zeros(n_obs)
+        x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
         prev_x = cur_x
 
 
@@ -259,12 +247,8 @@ def train(sess, rl_model):
                 waited_time = 0
                 prev_x = None
 
-                win_loss.append(reward)
-                while len(win_loss)>100:
-                    win_loss.pop(0)
 
                 # update running reward
-                #epsilon = 1
                 epsilon = math.pow(0.5, episode_number / 1000)
                 running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
                 running = len(rs)
@@ -292,14 +276,15 @@ def train(sess, rl_model):
                             ys.pop(lowest)
 
                     x_t = np.vstack(xs)
-                    r_t = np.vstack(rs)
+                    r_t = np.stack(rs)
                     y_t = np.stack(ys)
 
                     # parameter update
                     feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
 
-                    one_hot_val, prob_val, l2_loss_val = sess.run([tf_one_hot, tf_aprob, l2_loss], feed_dict=feed)
-
+                    #epr_val, mean_val, variance_val, l2_loss_val, ce_loss_val, ce_val = \
+                    #    sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss, ce_loss, cross_entropy],
+                    #                                                    feed)
                     _, train_summaries = sess.run([train_op, train_summary_op], feed)
 
 
@@ -311,10 +296,10 @@ def train(sess, rl_model):
                 # print progress console
                 if episode_number % 5 == 0:
                     print(
-                    'ep {}: reward: {}, mean reward: {:.3f}, running: {}'.format(episode_number, reward_sum, running_reward, running))
+                    'ep {}: reward: {}, mean reward: {:3f}, running: {}'.format(episode_number, reward_sum, running_reward, running))
                 else:
                     print(
-                    '\tep {}: reward: {}, won {:.2f} %'.format(episode_number, reward_sum, count_win_percentage(win_loss)))
+                    '\tep {}: reward: {}'.format(episode_number, reward_sum))
 
 
                 episode_number += 1  # the Next Episode
@@ -340,7 +325,7 @@ def inference(sess, rl_model):
     while True:
         # preprocess the observation, set input to network to be difference image
         cur_x = prepro(observation)
-        x = diff(prev_x, cur_x) if prev_x is not None else np.zeros(n_obs)
+        x = cur_x - prev_x if prev_x is not None else np.zeros(n_obs)
         prev_x = cur_x
 
         if waited_time < wait_time:
