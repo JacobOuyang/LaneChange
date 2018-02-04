@@ -18,7 +18,7 @@ save_path = 'models_Attemp19/Attempt19'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = True
+display = False
 game=Environment.GameV1(display)
 game.populateGameArray()
 prev_x = None
@@ -34,9 +34,11 @@ tf_model = {}
 with tf.variable_scope('layer_one', reuse=False):
     xavier_l1 = tf.truncated_normal_initializer(mean=0, stddev=1. / np.sqrt(n_obs), dtype=tf.float32)
     tf_model['W1'] = tf.get_variable("W1", [n_obs, h], initializer=xavier_l1)
+    tf_model['b1'] = tf.Variable(tf.truncated_normal([h], stddev=1. / np.sqrt(h), dtype=tf.float32), name='b1')
 with tf.variable_scope('layer_two', reuse=False):
     xavier_l2 = tf.truncated_normal_initializer(mean=0, stddev=1. / np.sqrt(h), dtype=tf.float32)
     tf_model['W2'] = tf.get_variable("W2", [h, n_actions], initializer=xavier_l2)
+    tf_model['b2'] = tf.Variable(tf.truncated_normal([n_actions], stddev=.5, dtype=tf.float32), name="b2")
 def discount_rewards(rewardarray):
 
     gamenumber = 0
@@ -84,9 +86,9 @@ def tf_discount_rewards(tf_r):  # tf_r ~ [game_steps,1]
 
 
 def tf_policy_forward(x):  # x ~ [1,D]
-    h = tf.matmul(x, tf_model['W1'])
+    h = tf.matmul(x, tf_model['W1']) + tf_model['b1']
     h = tf.nn.relu(h)
-    logp = tf.matmul(h, tf_model['W2'])
+    logp = tf.matmul(h, tf_model['W2']) + tf_model['b2']
     p = tf.nn.softmax(logp)
     return p
 
