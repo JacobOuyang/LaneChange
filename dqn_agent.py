@@ -28,7 +28,7 @@ learning_rate_decay_step = 5 * 10000,
 learning_rate_decay = 0.96,
 target_q_update_step = 1000
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp31/Attempt31'
+save_path = 'models_Attemp32/Attempt32'
 INITIAL_EPSILON = 1
 
 # gamespace
@@ -191,6 +191,8 @@ class dqn_Model():
 
         self.q_summary = tf.summary.merge(q_summary, 'q_summary')
 
+        self.win_rate_holder = tf.placeholder("float32", None, name="running_win_rate")
+        self.win_rate_op = tf.summary.scalar("win_rate", self.win_rate_holder)
 
         scalar_summary_tags = ['average.reward', 'average.loss', 'average.q', \
                                'episode.max reward', 'episode.min reward', 'episode.avg reward', 'episode.num of game',
@@ -210,9 +212,8 @@ class dqn_Model():
             self.summary_placeholders[tag] = tf.placeholder('float32', None, name=tag.replace(' ', '_'))
             self.summary_ops[tag] = tf.summary.histogram(tag, self.summary_placeholders[tag])
 
-
-
-        self.writer = tf.summary.FileWriter('./logs/%s' % save_path, self.sess.graph)
+        train_summary_dir = os.path.join(save_path, "summaries", "train")
+        self.writer = tf.summary.FileWriter(train_summary_dir, self.sess.graph)
 
 
     def update_network(self):
@@ -314,7 +315,8 @@ def count_win_percentage(win_loss):
 
 
 def restore_model(sess):
-    step = 0
+    episode_number = 0
+
     # try load saved model
     saver = tf.train.Saver(tf.global_variables())
     load_was_success = True  # yes, I'm being optimistic
@@ -333,8 +335,9 @@ def restore_model(sess):
         print(
             "loaded model: {}".format(load_path))
         #saver = tf.train.Saver(tf.global_variables())
-        step = int(load_path.split('-')[-1])
-    return saver, step, save_dir
+        episode_number = int(load_path.split('-')[-1])
+
+    return saver, episode_number, save_dir
 
 
 
@@ -349,20 +352,27 @@ def train(sess):
     # however, the scope name will differentiate the main network from the target network
     main_q_net.forward_graph()
     main_q_net.train_graph()
-    main_q_net.summary_graph()
+
     target_q_net.forward_graph()
     target_q_net.select_q_graph()
     target_q_net.update_network()
+
     step_op, step_input, step_assign_op = setup_training_step_count()
 
+    main_q_net.summary_graph() # create the summary graph last, so ops will be in tensorboard
+
     # restore the model with previously saved weights
-    saver, step, save_dir = restore_model(sess)
+
+    saver, start_episode_number, save_dir = restore_model(sess)
+
+    step = step_op.eval(session=sess)
 
     #train_summary_dir = os.path.join(save_dir, "summaries", "train")
     #train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
-    epsilon = 1
-    #epsilon = math.pow(0.5, episode_number/3000)
+    #epsilon = 1
+    epsilon = math.pow(0.5, start_episode_number/3000)
+
 
     wait_time = 1
     waited_time = 0
@@ -373,10 +383,10 @@ def train(sess):
     win_loss = []
     # training loop
     replay_buffer = experience_buffer()
-    step = step_op.eval()
+
     # preprocess the observation, set input to network to be difference image
     s_t = prepro(observation)
-    episode_number = 0
+    episode_number = start_episode_number
     episodeBuffer = experience_buffer()
 
     while True: # looping over every step. episode consists of many steps till end of a game?
@@ -404,7 +414,7 @@ def train(sess):
 
 
             # parameter update
-            if episode_number > learn_start: # wait till enough in the play buffer
+            if episode_number-start_episode_number > learn_start: # wait till enough in the play buffer
                 # sample a batch from the replay buffer
                 # ready to train the networks
                 if step % TRAIN_FREQUENCY == 0:
@@ -444,9 +454,9 @@ def train(sess):
                 # update target network, and save the model to hd
                 if step % target_q_update_step == target_q_update_step -1:
                     update_target_network(target_q_net,main_q_net)
-
-                    saver.save(sess, save_path, global_step=step)
-                    print("SAVED MODEL #{}".format(step))
+                    step_assign_op.eval({step_input: step})
+                    saver.save(sess, save_path, global_step=episode_number)
+                    print("SAVED MODEL #step {}, episode{}".format(step, episode_number))
 
             step += 1
             if done: #end of episode
@@ -465,9 +475,13 @@ def train(sess):
                 running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
 
                 # print progress console
+                win_rate = count_win_percentage(win_loss)
+                print('\tep {}: running_reward: {}, won {:.2f} %'.format(episode_number, running_reward, win_rate))
 
-                print('\tep {}: running_reward: {}, won {:.2f} %'.format(episode_number, running_reward, count_win_percentage(win_loss)))
-
+                # write the win_rate for tensorboard
+                step_assign_op.eval({step_input:step})
+                win_rate_summary = sess.run(main_q_net.win_rate_op, feed_dict={main_q_net.win_rate_holder:win_rate})
+                main_q_net.writer.add_summary(win_rate_summary, step)
 
                 episode_number += 1  # the Next Episode
 
@@ -483,12 +497,13 @@ def inference(sess):
     main_q_net.forward_graph()
 
     # restore the model with previously saved weights
-    saver, step, save_dir = restore_model(sess)
-
+    #step_op, step_input, step_assign_op = setup_training_step_count()
+    saver, episode_number, save_dir = restore_model(sess)
+    #step = step_op.eval(session=sess)
     wait_time = 1
     waited_time = 0
 
-    episode_number = 0
+
     win_loss = []
     reward_sum = 0
     running_reward = None
