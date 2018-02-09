@@ -7,10 +7,11 @@ import random
 import math
 import os
 import cv2
+import copy
 
 TRAIN_FREQUENCY = 4
 
-MAX_MEMORY_SIZE = 3500
+MAX_MEMORY_SIZE = 10000
 # hyperparameters
 height = 50
 width = 100
@@ -32,8 +33,8 @@ save_path = 'models_Attemp32/Attempt32'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = False
-training = True
+display = True
+training = False
 
 game=Environment.GameV1(display)
 game.populateGameArray()
@@ -169,17 +170,16 @@ class dqn_Model():
         grad_summaries = []
         for g, v in tf_grads:
             if g is not None:
-                grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
+                #grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
                 sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
-                grad_summaries.append(grad_hist_summary)
+                #grad_summaries.append(grad_hist_summary)
                 grad_summaries.append(sparsity_summary)
         grad_summaries_merged = tf.summary.merge(grad_summaries)
 
         loss_summary = tf.summary.scalar("main_q_loss", self.loss)
         #learning_rate_ = tf.summary.scalar("learning_rate", self.learning_rate_op)
 
-        self.train_summary_op = tf.summary.merge(
-            [loss_summary, grad_summaries_merged])
+        self.train_summary_op = tf.summary.merge([loss_summary, grad_summaries_merged])
 
 
 
@@ -389,6 +389,9 @@ def train(sess):
     episode_number = start_episode_number
     episodeBuffer = experience_buffer()
 
+    last_saved_win_rate = 0
+
+    sess.graph.finalize()
     while True: # looping over every step. episode consists of many steps till end of a game?
         if waited_time < wait_time:
             action = 0
@@ -453,10 +456,16 @@ def train(sess):
 
                 # update target network, and save the model to hd
                 if step % target_q_update_step == target_q_update_step -1:
+                    # update the target network
                     update_target_network(target_q_net,main_q_net)
-                    step_assign_op.eval({step_input: step})
-                    saver.save(sess, save_path, global_step=episode_number)
-                    print("SAVED MODEL #step {}, episode{}".format(step, episode_number))
+
+                    # persist models only when win_rate is better
+                    if win_rate > last_saved_win_rate:
+                        step_assign_op.eval({step_input: step})
+                        saver.save(sess, save_path, global_step=episode_number)
+
+                        print("SAVED MODEL #step {}, episode{}".format(step, episode_number))
+                        last_saved_win_rate = win_rate
 
             step += 1
             if done: #end of episode
@@ -468,8 +477,10 @@ def train(sess):
                     win_loss.pop(0)
                 # add the samples for the episode to the replay buffer
                 # TODO: should we adjust sample rewards based on win or loss of the episode?
-                replay_buffer.add(episodeBuffer.buffer)
-
+                sample_count = len(episodeBuffer.buffer)
+                # keep only 2nd half of the samples, so that the replay buffer will have more negative samples
+                replay_buffer.add(episodeBuffer.buffer[1::4]
+                                  + [copy.deepcopy(episodeBuffer.buffer[-1]) for _ in range(20)])
                 # update running reward
                 epsilon = math.pow(0.5, episode_number / 3000)
                 running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
