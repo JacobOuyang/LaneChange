@@ -29,12 +29,12 @@ learning_rate_decay_step = 5 * 10000,
 learning_rate_decay = 0.96,
 target_q_update_step = 1000
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp32/Attempt32'
+save_path = 'models_Attemp35/Attempt35'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = True
-training = False
+display = False
+training = True
 
 game=Environment.GameV1(display)
 game.populateGameArray()
@@ -477,10 +477,17 @@ def train(sess):
                     win_loss.pop(0)
                 # add the samples for the episode to the replay buffer
                 # TODO: should we adjust sample rewards based on win or loss of the episode?
-                sample_count = len(episodeBuffer.buffer)
+
+                #rewards = [sample[2] for sample in episodeBuffer.buffer[:-2]]
+                #discounted_rewards = discount_rewards(rewards)
+                episode_win = episodeBuffer.buffer[-1][5]
+                for i, sample in enumerate(episodeBuffer.buffer[:-2]):
+                    sample[5] = episode_win
+
                 # keep only 2nd half of the samples, so that the replay buffer will have more negative samples
-                replay_buffer.add(episodeBuffer.buffer[1::4]
-                                  + [copy.deepcopy(episodeBuffer.buffer[-1]) for _ in range(20)])
+                #replay_buffer.add(episodeBuffer.buffer[1::4]
+                #                  + [copy.deepcopy(episodeBuffer.buffer[-1]) for _ in range(20)])
+                replay_buffer.add(episodeBuffer.buffer)
                 # update running reward
                 epsilon = math.pow(0.5, episode_number / 3000)
                 running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
