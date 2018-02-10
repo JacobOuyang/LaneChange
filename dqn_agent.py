@@ -243,7 +243,7 @@ class experience_buffer():
         return np.reshape(np.array(random.sample(self.buffer, size)), [size, 6])
 
 
-def discount_rewards(rewardarray):
+'''def discount_rewards(rewardarray):
 
     gamenumber = 0
     episodeoneend = 0
@@ -271,7 +271,23 @@ def discount_rewards(rewardarray):
         rewardarray[i+1] = rewardarray[i] * gamma
     rewardarray.reverse()
     return rewardarray
+'''
 
+def discount_rewards(rewardarray):
+
+    rewardarray.reverse()
+    if rewardarray[0] > 0:
+
+            rewardarray[0] = (177-len(rewardarray))/30 * rewardarray[0] *2
+
+
+    elif rewardarray[0] < 0:
+        rewardarray[0] = rewardarray[0] * math.pow(3, (170-len(rewardarray))/170)
+    for i in range(len(rewardarray) -1):
+
+        rewardarray[i+1] = rewardarray[i] * gamma
+    rewardarray.reverse()
+    return rewardarray
 
 def discount_smallrewards(rewardarray):
     rewardarray.reverse()
@@ -388,7 +404,12 @@ def train(sess):
     s_t = prepro(observation)
     episode_number = start_episode_number
     episodeBuffer = experience_buffer()
-
+    s_t_array = []
+    action_array = []
+    reward_array = []
+    smallreward_array = []
+    s_t_plus_1_array = []
+    done_array = []
     last_saved_win_rate = 0
 
     sess.graph.finalize()
@@ -408,6 +429,12 @@ def train(sess):
             # roll out a step
             observation, reward, smallreward, done = game.runGame(action, False)
             s_t_plus_1 = prepro(observation)
+            s_t_array.append(s_t)
+            action_array.append(action)
+            reward_array.append(reward)
+            smallreward.append(smallreward)
+            s_t_plus_1_array.append(s_t_plus_1)
+            done_array.append(done)
 
             # save everything about this step into the episode buffer
             episodeBuffer.add(np.reshape(np.array([s_t, action, reward, smallreward, s_t_plus_1, done]), [1, 6]))
@@ -471,6 +498,10 @@ def train(sess):
             if done: #end of episode
                 #reset
                 waited_time = 0
+                reward_array = discount_rewards(reward_array)
+
+                for i in range(len(reward_array)):
+                    episodeBuffer.add(np.reshape(np.array([s_t_array[i], action_array.pop(), reward_array.pop(), smallreward_array.pop(), s_t_plus_1_array.pop(), done_array.pop()]), [1, 6]))
 
                 win_loss.append(reward)
                 while len(win_loss)>100:
