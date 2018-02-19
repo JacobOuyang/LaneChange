@@ -16,12 +16,12 @@ learning_rate = 1e-4
 gamma = .90  # discount factor for reward
 
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp25/Attempt25'
+save_path = 'models_Attemp27/Attempt27'
 INITIAL_EPSILON = 1
 
 # gamespace
-display = True
-training = False
+display = False
+training = True
 
 game=Environment.GameV1(display)
 game.populateGameArray()
@@ -70,7 +70,11 @@ class RL_Model():
         self.cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.tf_y, logits=tf_logits)
         self.l2_loss = tf.nn.l2_loss(tf_one_hot - tf_aprob, name="tf_l2_loss")
         self.ce_loss = tf.reduce_mean(self.cross_entropy, name="tf_ce_loss")
-        self.pg_loss = tf.reduce_sum(tf_epr_normed * self.cross_entropy, name="tf_pg_loss")
+        #self.pg_loss = tf.reduce_sum(tf_epr_normed * self.cross_entropy, name="tf_pg_loss")
+
+        self.indices = tf.range(0, tf.shape(tf_aprob)[0])*tf.shape(tf_aprob)[1] + self.tf_y
+        self.act_prob = tf.gather(tf.reshape(tf_aprob, [-1]), self.indices)
+        self.pg_loss = -tf.reduce_sum(tf.multiply(self.act_prob, tf_epr_normed))*0.5
         optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
         tf_grads = optimizer.compute_gradients(self.pg_loss, var_list=tf.trainable_variables())  # , grad_loss=tf_epr_normed)
 
@@ -170,6 +174,7 @@ def restore_model(sess):
         print(
             "no saved model to load. starting new session")
         load_was_success = False
+        tf.global_variables_initializer().run()
     else:
         print(
             "loaded model: {}".format(load_path))
