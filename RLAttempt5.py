@@ -145,7 +145,7 @@ class RL_Model():
         self.ce_loss = tf.reduce_mean(self.cross_entropy, name="tf_ce_loss")
         self.pg_loss = tf.reduce_sum(tf_epr_normed * self.cross_entropy, name="tf_pg_loss")
         optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-        tf_grads = optimizer.compute_gradients(self.l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr_normed)
+        tf_grads = optimizer.compute_gradients(self.pg_loss, var_list=tf.trainable_variables())#, grad_loss=tf_epr_normed)
 
         self.train_op = optimizer.apply_gradients(tf_grads)
 
@@ -167,7 +167,7 @@ class RL_Model():
 
         return self.tf_y, self.tf_epr, self.train_op, self.train_summary_op
 class experience_buffer():
-    def __init__(self, buffer_size=50000):
+    def __init__(self, buffer_size=1000):
         self.buffer = []
         self.buffer_size = buffer_size
 
@@ -256,6 +256,7 @@ def restore_model(sess):
         print(
             "no saved model to load. starting new session")
         load_was_success = False
+        tf.global_variables_initializer().run()
     else:
         print(
             "loaded model: {}".format(load_path))
@@ -345,7 +346,7 @@ def train(sess):
 
 
                     # remove
-                    excess = len(rs) - MAX_MEMORY_SIZE
+                    '''excess = len(rs) - MAX_MEMORY_SIZE
                     if excess < 0:
                         excess = 0
                     if excess < 0:
@@ -359,16 +360,16 @@ def train(sess):
                             rs.pop(lowest)
                             xs.pop(lowest)
                             ys.pop(lowest)
-                            rsabs.pop(lowest)
-                    for i in range(rs):
-                        experience_buffer.add([xs[i],rs[i],ys[i]])
-                    if len(experience_buffer.buffer) >= experience_buffer.buffer:
+                            rsabs.pop(lowest)'''
+                    for i in range(len(rs)):
+                        experiencebuffer.add(np.reshape(np.array([xs[i],rs[i],ys[i]]), [1,3]))
+                    if len(experiencebuffer.buffer) >= experiencebuffer.buffer_size:
                         for i in range(10):
-                            sample_buffer = experience_buffer.sample(32)
+                            sample_buffer = experiencebuffer.sample(32)
 
-                            x_t = np.vstack(sample_buffer[0])
-                            r_t = np.stack(sample_buffer[1])
-                            y_t = np.stack(sample_buffer[2])
+                            x_t = np.stack(sample_buffer[:,0])
+                            r_t = np.stack(sample_buffer[:,1])
+                            y_t = np.stack(sample_buffer[:,2])
 
                             # parameter update
                             feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
@@ -377,11 +378,11 @@ def train(sess):
                             #    sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss, ce_loss, cross_entropy],
                             #                                                    feed)
                             _, train_summaries = sess.run([train_op, train_summary_op], feed)
-
+                            train_summary_writer.add_summary(train_summaries, episode_number)
                         # bookkeeping
                     xs, rs, rs2, ys = [], [], [], []  # reset game history
 
-                    train_summary_writer.add_summary(train_summaries, episode_number)
+
 
                 # print progress console
                 if episode_number % 5 == 0:
@@ -439,7 +440,7 @@ def inference(sess):
 def main():
     # tf graph initialization
     sess = tf.InteractiveSession()
-    tf.global_variables_initializer().run()
+
 
     if training:
         train(sess)
