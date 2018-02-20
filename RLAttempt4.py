@@ -67,12 +67,12 @@ class RL_Model():
         tf_epr_normed = self.tf_epr - tf_mean
         tf_epr_normed /= tf.sqrt(tf_variance + 1e-6)
         tf_one_hot = tf.one_hot(self.tf_y, n_actions)
-        self.cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.tf_y, logits=tf_logits)
-        self.l2_loss = tf.nn.l2_loss(tf_one_hot - tf_aprob, name="tf_l2_loss")
-        self.ce_loss = tf.reduce_mean(self.cross_entropy, name="tf_ce_loss")
-        self.pg_loss = tf.reduce_sum(tf_epr_normed * self.cross_entropy, name="tf_pg_loss")
+
+        self.entropy_loss = tf.reduce_mean(tf_aprob * tf.log(self.aprob), name="tf_ce_loss")
+        self.responsbile_outputs = tf.reduce_sum(tf_aprob * tf_one_hot, [1])
+        self.pg_loss = - tf.reduce_sum(tf_epr_normed * tf.log(self.responsbile_outputs), name="tf_pg_loss")
         optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-        tf_grads = optimizer.compute_gradients(self.l2_loss, var_list=tf.trainable_variables(), grad_loss=tf_epr_normed)
+        tf_grads = optimizer.compute_gradients(self.pg_loss, var_list=tf.trainable_variables())
 
         self.train_op = optimizer.apply_gradients(tf_grads)
 
