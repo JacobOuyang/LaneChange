@@ -336,51 +336,54 @@ def train(sess):
                 running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
                 running = len(rs)
 
-                if episode_number % 2:
-                    rs2 = discount_smallrewards(rs2)
-                    rs = discount_rewards(rs)
+            #if episode_number % 2:
+                rs2 = discount_smallrewards(rs2)
+                rs = discount_rewards(rs)
 
-                    # combine both rewards
-                    for i in range(len(rs)):
-                        rs[i] += rs2[i]
+                # combine both rewards
+                for i in range(len(rs)):
+                    rs[i] += rs2[i]
 
 
-                    # remove
-                    '''excess = len(rs) - MAX_MEMORY_SIZE
-                    if excess < 0:
-                        excess = 0
-                    if excess < 0:
-                        excess = 0
-                    if excess > 0:
-                        for i in range(excess):
-                            rsabs = []
-                            for i in range(len(rs)):
-                                rsabs.append(math.fabs(rs[i]))
-                            lowest = np.argmin(rsabs)
-                            rs.pop(lowest)
-                            xs.pop(lowest)
-                            ys.pop(lowest)
-                            rsabs.pop(lowest)'''
-                    for i in range(len(rs)):
-                        experiencebuffer.add(np.reshape(np.array([xs[i],rs[i],ys[i]]), [1,3]))
-                    if len(experiencebuffer.buffer) >= experiencebuffer.buffer_size:
-                        for i in range(10):
-                            sample_buffer = experiencebuffer.sample(32)
+                # remove
+                excess = len(rs) - MAX_MEMORY_SIZE
+                if excess < 0:
+                    excess = 0
+                if excess < 0:
+                    excess = 0
+                if excess > 0:
+                    for i in range(excess):
+                        rsabs = []
+                        for i in range(len(rs)):
+                            rsabs.append(math.fabs(rs[i]))
+                        lowest = np.argmin(rsabs)
+                        rs.pop(lowest)
+                        xs.pop(lowest)
+                        ys.pop(lowest)
+                        rsabs.pop(lowest)
 
-                            x_t = np.stack(sample_buffer[:,0])
-                            r_t = np.stack(sample_buffer[:,1])
-                            y_t = np.stack(sample_buffer[:,2])
+                #if len(experiencebuffer.buffer) >= experiencebuffer.buffer_size:
+                for i in range(3):
+                    x_buffer, y_buffer, r_buffer = [], [], []
+                    for i in range(32):
+                        index = random.randint(0,len(rs)-1)
+                        x_buffer.append(xs[index])
+                        y_buffer.append(ys[index])
+                        r_buffer.append(rs[index])
+                    x_t = np.stack(x_buffer)
+                    r_t = np.stack(r_buffer)
+                    y_t = np.stack(y_buffer)
 
-                            # parameter update
-                            feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
+                    # parameter update
+                    feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
 
-                            # epr_val, mean_val, variance_val, l2_loss_val, ce_loss_val, ce_val = \
-                            #    sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss, ce_loss, cross_entropy],
-                            #                                                    feed)
-                            _, train_summaries = sess.run([train_op, train_summary_op], feed)
-                            train_summary_writer.add_summary(train_summaries, episode_number)
-                        # bookkeeping
-                    xs, rs, rs2, ys = [], [], [], []  # reset game history
+                    # epr_val, mean_val, variance_val, l2_loss_val, ce_loss_val, ce_val = \
+                    #    sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss, ce_loss, cross_entropy],
+                    #                                                    feed)
+                    _, train_summaries = sess.run([train_op, train_summary_op], feed)
+                    train_summary_writer.add_summary(train_summaries, episode_number)
+                    # bookkeeping
+                xs, rs, rs2, ys = [], [], [], []  # reset game history
 
 
 
