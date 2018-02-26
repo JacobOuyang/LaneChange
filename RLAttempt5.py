@@ -8,17 +8,18 @@ import math
 import os
 import cv2
 import copy
+import itertools
 
 TRAIN_FREQUENCY = 4
 
-MAX_MEMORY_SIZE = 5000
+MAX_MEMORY_SIZE = 500
 # hyperparameters
 height = 50
 width = 100
 n_obs = 100 * 50  # dimensionality of observations
 h = 200  # number of hidden layer neurons
 n_actions = 4  # number of available actions
-learning_rate = 0.00025
+learning_rate = 0.000025
 gamma = .99  # discount factor for reward
 
 batch_size = 32
@@ -29,7 +30,7 @@ learning_rate_decay_step = 5 * 10000,
 learning_rate_decay = 0.96,
 target_q_update_step = 1000
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp32/Attempt32'
+save_path = 'models_Attemp50/Attempt50'
 INITIAL_EPSILON = 1
 
 # gamespace
@@ -109,10 +110,10 @@ class RL_Model():
             self.s_t = tf.placeholder(dtype=tf.float32,
                                       shape=[None, height, width, 1], name='s_t')
             self.l1, self.w['l1_w'], self.w['l1_b'] = conv2d(self.s_t,
-                                                             32, [8, 8], [4, 4], initializer, activation_fn,
+                                                             32, [3, 3], [4, 4], initializer, activation_fn,
                                                              "NHWC", name='l1')
             self.l2, self.w['l2_w'], self.w['l2_b'] = conv2d(self.l1,
-                                                             64, [4, 4], [2, 2], initializer, activation_fn,
+                                                             64, [3, 3], [2, 2], initializer, activation_fn,
                                                              "NHWC", name='l2')
             self.l3, self.w['l3_w'], self.w['l3_b'] = conv2d(self.l2,
                                                              64, [3, 3], [1, 1], initializer, activation_fn,
@@ -120,7 +121,7 @@ class RL_Model():
 
             self.l3_flat = flatten(self.l3)
 
-            self.fc1, self.w['l4_fc1'], self.w['l4_fc1'] = \
+            self.fc1, self.w['l4_w'], self.w['l4_b'] = \
                 linear(self.l3_flat, 512, activation_fn=activation_fn, name='fc1')
 
             self.output, self.w['output_w'], self.w['output_b'] = \
@@ -134,36 +135,43 @@ class RL_Model():
         self.tf_y = tf.placeholder(dtype=tf.int32, shape=[None], name="tf_y")
         self.tf_epr = tf.placeholder(dtype=tf.float32, shape=[None], name="tf_epr")
 
-        # tf reward processing (need tf_discounted_epr for policy gradient wizardry)
-        # tf_discounted_epr = tf_discount_rewards(tf_epr)
-        tf_mean, tf_variance = tf.nn.moments(self.tf_epr, [0], shift=None, name="reward_moments")
-        tf_epr_normed = self.tf_epr - tf_mean
-        tf_epr_normed /= tf.sqrt(tf_variance + 1e-6)
         tf_one_hot = tf.one_hot(self.tf_y, n_actions)
-        self.cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.tf_y, logits=tf_logits)
-        self.l2_loss = tf.nn.l2_loss(tf_one_hot - tf_aprob, name="tf_l2_loss")
-        self.ce_loss = tf.reduce_mean(self.cross_entropy, name="tf_ce_loss")
-        self.pg_loss = tf.reduce_sum(tf_epr_normed * self.cross_entropy, name="tf_pg_loss")
+        self.entropy_loss = tf.reduce_mean(tf_aprob * tf.log(tf_aprob), name="tf_ce_loss")
+        self.responsbile_outputs = tf.reduce_sum(tf_aprob * tf_one_hot, [1])
+        self.pg_loss = -tf.reduce_sum(tf.log(self.responsbile_outputs) * self.tf_epr)
         optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=decay)
-        tf_grads = optimizer.compute_gradients(self.pg_loss, var_list=tf.trainable_variables())#, grad_loss=tf_epr_normed)
 
-        self.train_op = optimizer.apply_gradients(tf_grads)
+        tvs = tf.trainable_variables()
+        self.accum_vars = [tf.Variable(tf.zeros_like(tv.initialized_value()), trainable=False) for tv in tvs]
+        self.zero_ops = [tv.assign(tf.zeros_like(tv)) for tv in self.accum_vars]
+
+        self.tf_grads = optimizer.compute_gradients(self.pg_loss, var_list=tvs)
+        self.accum_ops = [self.accum_vars[i].assign_add(gv[0]) for i, gv in enumerate(self.tf_grads)]
+
+        self.tf_episode_divisor = tf.placeholder(dtype=tf.float32)
+        self.episode_divisor = tf.Variable(0.0,  dtype=tf.float32, trainable=False, name='episode_divisor')
+        self.tf_episode_divisor_assign = self.episode_divisor.assign(self.tf_episode_divisor)
+
+        step_gradient = [(tf.scalar_mul(self.episode_divisor, self.accum_vars[i]), gv[1]) for i, gv in enumerate(self.tf_grads)]
+
+        self.train_op = optimizer.apply_gradients(step_gradient)
+
+
 
         # write out losses to tensorboard
         grad_summaries = []
-        for g, v in tf_grads:
-            if g is not None:
-                grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v.name), g)
-                sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v.name), tf.nn.zero_fraction(g))
+        for i, v in enumerate(self.tf_grads):
+            if v[0] is not None:
+                grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(v[1].name), step_gradient[i])
+                sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(v[1].name), tf.nn.zero_fraction(step_gradient[i]))
                 grad_summaries.append(grad_hist_summary)
                 grad_summaries.append(sparsity_summary)
         grad_summaries_merged = tf.summary.merge(grad_summaries)
 
-        l2_loss_summary = tf.summary.scalar("l2_loss", self.l2_loss)
-        ce_loss_summary = tf.summary.scalar("ce_loss", self.ce_loss)
+
         pg_loss_summary = tf.summary.scalar("pg_loss", self.pg_loss)
 
-        self.train_summary_op = tf.summary.merge([l2_loss_summary, ce_loss_summary, pg_loss_summary, grad_summaries_merged])
+        self.train_summary_op = tf.summary.merge([pg_loss_summary, grad_summaries_merged])
 
         return self.tf_y, self.tf_epr, self.train_op, self.train_summary_op
 class experience_buffer():
@@ -182,7 +190,7 @@ class experience_buffer():
 
 def discount_rewards(rewardarray):
 
-    gamenumber = 0
+    '''gamenumber = 0
     episodeoneend = 0
     for i in range(len(rewardarray)):
         if rewardarray[i] > 0:
@@ -201,23 +209,27 @@ def discount_rewards(rewardarray):
             episodeoneend = i
         else:
             rewardarray[i] = rewardarray[i]
-
+    '''
     rewardarray.reverse()
+    if rewardarray[0] >0:
+        rewardarray[0] += ((167-len(rewardarray))/30)
+    else:
+        rewardarray[0] += len(rewardarray)/170 #rewardarray[0] * math.pow(3, (170-len(rewardarray))/170)
+    #rewardarray.reverse()
     for i in range(len(rewardarray) -1):
 
-        rewardarray[i+1] = rewardarray[i] * gamma
+        rewardarray[i+1] += rewardarray[i] * gamma
     rewardarray.reverse()
     return rewardarray
 
 
 def discount_smallrewards(rewardarray):
-    rewardarray.reverse()
 
     for i in range(len(rewardarray) -1):
-        if rewardarray[i] != 0:
-            rewardarray[i] = rewardarray[i] * 15
-    rewardarray.reverse()
+        if rewardarray[i] >=0:
+            rewardarray[i] = rewardarray[i] * 5
     return rewardarray
+
 
 def displayImage(image):
     __debug_diff__ = False
@@ -279,17 +291,20 @@ def train(sess):
     train_summary_dir = os.path.join(save_dir, "summaries", "train")
     train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
-    epsilon = math.pow(0.5, episode_number / 1000)
+    epsilon = math.pow(0.5, episode_number / 2000)
 
     wait_time = 1
     waited_time = 0
     prev_x = None
-    xs, rs, rs2, ys = [], [], [], []
+    exs, ers, ers2, eys = [], [], [], []
+    xs, rs, ys = [], [], []
+    sess.run(rl_model.zero_ops)
 
     running_reward = None
     reward_sum = 0
     observation = np.zeros(shape=(200, 300))
-    experiencebuffer= experience_buffer()
+
+    episode_number_in_batch = 0
     # training loop
     while True:
 
@@ -321,36 +336,38 @@ def train(sess):
             reward_sum += reward
 
             x = np.expand_dims(x, -1)
-            xs.append(x)
-            ys.append(label)
-            rs.append(reward)
-            rs2.append(smallreward)
+            exs.append(x)
+            eys.append(label)
+            ers.append(reward)
+            ers2.append(smallreward)
 
             if done:
                 # reset
                 waited_time = 0
                 prev_x = None
-
+                episode_number_in_batch += 1
                 # update running reward
-                epsilon = math.pow(0.5, episode_number / 1000)
+                epsilon = math.pow(0.5, episode_number / 2000)
                 running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-                running = len(rs)
+                running = len(ers)
 
-            #if episode_number % 2:
-                rs2 = discount_smallrewards(rs2)
-                rs = discount_rewards(rs)
+                ers2 = discount_smallrewards(ers2)
+                for i in range(len(ers)):
+                    ers[i] += ers2[i]
 
-                # combine both rewards
-                for i in range(len(rs)):
-                    rs[i] += rs2[i]
+                ers = discount_rewards(ers)
+                mean = np.mean(ers)
+                stddev = np.std(ers) + 1e-6
+                ers -= mean
+                ers /= stddev
 
+                rs = list(itertools.chain(rs,ers))
+                xs = list(itertools.chain(xs, exs))
+                ys = list(itertools.chain(ys, eys))
+                exs, ers, ers2, eys = [], [], [], []
 
-                # remove
+                # remove things more than max memory
                 excess = len(rs) - MAX_MEMORY_SIZE
-                if excess < 0:
-                    excess = 0
-                if excess < 0:
-                    excess = 0
                 if excess > 0:
                     for i in range(excess):
                         rsabs = []
@@ -362,30 +379,31 @@ def train(sess):
                         ys.pop(lowest)
                         rsabs.pop(lowest)
 
-                #if len(experiencebuffer.buffer) >= experiencebuffer.buffer_size:
-                for i in range(3):
-                    x_buffer, y_buffer, r_buffer = [], [], []
-                    for i in range(32):
-                        index = random.randint(0,len(rs)-1)
-                        x_buffer.append(xs[index])
-                        y_buffer.append(ys[index])
-                        r_buffer.append(rs[index])
-                    x_t = np.stack(x_buffer)
-                    r_t = np.stack(r_buffer)
-                    y_t = np.stack(y_buffer)
 
-                    # parameter update
-                    feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
+                if len(rs) > 200:
+                    start = len(rs) % batch_size
+                    end = start
+                    count = int(len(rs)/32)
 
-                    # epr_val, mean_val, variance_val, l2_loss_val, ce_loss_val, ce_val = \
-                    #    sess.run([tf_epr_normed, tf_mean, tf_variance, l2_loss, ce_loss, cross_entropy],
-                    #                                                    feed)
+                    for i in range(count):
+                        start = end
+                        end = start + batch_size
+                        x_t = np.stack(xs[start:end])
+                        r_t = np.stack(rs[start:end])
+                        y_t = np.stack(ys[start:end])
+
+                        # parameter update
+                        feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t}
+
+                        sess.run([rl_model.accum_ops], feed)
+
+                    feed = {tf_x: x_t, tf_epr: r_t, tf_y: y_t, rl_model.episode_divisor: 1.0/episode_number_in_batch}
                     _, train_summaries = sess.run([train_op, train_summary_op], feed)
                     train_summary_writer.add_summary(train_summaries, episode_number)
-                    # bookkeeping
-                xs, rs, rs2, ys = [], [], [], []  # reset game history
-
-
+                        # bookkeeping
+                    xs, rs, ys = [], [], []  # reset game history
+                    sess.run(rl_model.zero_ops)
+                    episode_number_in_batch = 0
 
                 # print progress console
                 if episode_number % 5 == 0:
@@ -428,7 +446,7 @@ def inference(sess):
             action = 0
             waited_time += 1
         else:
-            feed = {tf_x: np.reshape(x, (1, -1))}
+            feed = {tf_x: np.reshape(x, [-1, height, width, 1])}
             aprob = sess.run(tf_aprob, feed);
             action = np.argmax(aprob)
 
