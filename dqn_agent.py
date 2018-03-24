@@ -29,7 +29,7 @@ learning_rate_decay_step = 5 * 10000,
 learning_rate_decay = 0.96,
 target_q_update_step = 1000
 decay = 0.99  # decay rate for RMSProp gradients
-save_path = 'models_Attemp32/Attempt32'
+save_path = 'models_Attemp55/Attempt55'
 INITIAL_EPSILON = 1
 
 # gamespace
@@ -240,7 +240,7 @@ class experience_buffer():
         self.buffer.extend(experience)
 
     def sample(self, size):
-        return np.reshape(np.array(random.sample(self.buffer, size)), [size, 6])
+        return np.reshape(np.array(random.sample(self.buffer, size)), [size, 7])
 
 
 def discount_rewards(rewardarray):
@@ -396,7 +396,7 @@ def train(sess):
         if waited_time < wait_time:
             action = 0
             waited_time += 1
-            observation, reward, smallreward, done = game.runGame(action, False)
+            observation, reward, smallreward, done, velocity = game.runGame(action, False)
         else:
             # perform epsilon greedy for explorationa nd exploitation
             if random.random() < epsilon:
@@ -406,11 +406,11 @@ def train(sess):
                 action = sess.run(main_q_net.a_action, feed)[0];
 
             # roll out a step
-            observation, reward, smallreward, done = game.runGame(action, False)
+            observation, reward, smallreward, done, velocity = game.runGame(action, False)
             s_t_plus_1 = prepro(observation)
 
             # save everything about this step into the episode buffer
-            episodeBuffer.add(np.reshape(np.array([s_t, action, reward, smallreward, s_t_plus_1, done]), [1, 6]))
+            episodeBuffer.add(np.reshape(np.array([s_t, action, reward, smallreward, s_t_plus_1, done, velocity]), [1, 7]))
 
             #reset state variable for next step
             s_t = s_t_plus_1
@@ -430,6 +430,7 @@ def train(sess):
                     batch_smallreward = train_batch[:, 3]
                     batch_s_t_plus_1 = np.expand_dims(np.stack(train_batch[:, 4]), -1)
                     batch_done = train_batch[:, 5]
+                    batch_velocity = train_batch[:,6]
 
                     # get a_t_plus_1 from the main net
                     pred_action = main_q_net.a_action.eval({main_q_net.s_t: batch_s_t_plus_1})
@@ -438,8 +439,8 @@ def train(sess):
                                                                                 target_q_net.q_idx: \
                                                                                     [[idx, pred_a] for idx, pred_a in enumerate(pred_action)]})
                     # compute q estimates
-                    target_q_t = (1.0 - batch_done)*gamma * q_t_plus_1_with_pred_action + batch_smallreward
-
+                    #target_q_t = (1.0 - batch_done)*gamma * q_t_plus_1_with_pred_action + batch_smallreward
+                    target_q_t = batch_velocity +batch_smallreward
                     # prepare input for backprop on main network
                     feed = {main_q_net.s_t: batch_s_t,
                             main_q_net.actions: batch_action,
@@ -529,7 +530,7 @@ def inference(sess):
             feed = {main_q_net.s_t: np.reshape(s_t, [-1, height, width, 1])}
             action = sess.run(main_q_net.a_action, feed)[0];
 
-        observation, reward, smallreward, done = game.runGame(action, False)
+        observation, reward, smallreward, done, velocity = game.runGame(action, False)
 
         reward_sum += reward
 

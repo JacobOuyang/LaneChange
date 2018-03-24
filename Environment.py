@@ -36,6 +36,7 @@ class GameV1:
                 #currentposition += 10
         self.Game[self.lanes-1][0] = Cars.PlayerCar(0, self.Game[self.lanes-1][1].velocity)
 
+
     def updateGameArray(self, action):
         self.timer +=1
         self.tempstore = self.Game
@@ -141,8 +142,7 @@ class GameV1:
                     if self.Game[self.playerlanes-1][i].GetPos() >= playercar.GetPos():
                         self.Game[self.playerlanes].pop(self.playercarposition)
                         self.Game[self.playerlanes-1].insert(i, playercar)
-                        if self.playercarposition <= len(self.Game[self.playerlanes])-2:
-                            return self.Game[self.playerlanes-1][i+1].GetVel() - self.Game[self.playerlanes][self.playercarposition+1].GetVel()
+                        return self.Game[self.playerlanes-1][i+1].GetVel() - playercar.GetVel()
             else:
                 if self.playercarposition != len(self.Game[self.playerlanes]) - 1:
                     playercar.updateVeloc(self.Game[self.playerlanes][self.playercarposition + 1].GetVel())
@@ -256,17 +256,16 @@ class GameV1:
             self.Game=self.temprestore
             return "REDO", 0, 0, 0
         if temp[0] == 0:
-            return self.imagearray, temp[0], temp[1], False
+
+            return self.imagearray, temp[0], temp[1], False,self.Game[self.playerlanes][self.playercarposition].GetVel()
+
             #self.i = 1
         else:
-            if temp[1] != 0:
-                self.populateGameArray()
-                return self.imagearray, temp[0], temp[1] * -1, True
-            else:
             #self.i=0
-                self.populateGameArray()
+            tempcar = self.Game[self.playerlanes][self.playercarposition].GetVel()
+            self.populateGameArray()
 
-                return self.imagearray, temp[0], 0, True
+            return self.imagearray, temp[0], 0, True, temp[0] * tempcar
 
 
 
